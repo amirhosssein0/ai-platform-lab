@@ -7,3 +7,6 @@ frontend:
 
 ingress:
   host: prod.ai.local
+
+postgres:
+  storageSize: 5Gi

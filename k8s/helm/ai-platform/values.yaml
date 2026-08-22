@@ -7,3 +7,8 @@ frontend:
   image: ai-frontend:local
   imagePullPolicy: Never
   containerPort: 3000
+
+postgres:
+  image: postgres:16-alpine
+  containerPort: 5432
+  dbName: aegis
