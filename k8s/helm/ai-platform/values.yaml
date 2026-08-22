@@ -1,0 +1,9 @@
+backend:
+  image: ai-backend:local
+  imagePullPolicy: Never
+  containerPort: 8000
+
+frontend:
+  image: ai-frontend:local
+  imagePullPolicy: Never
+  containerPort: 3000

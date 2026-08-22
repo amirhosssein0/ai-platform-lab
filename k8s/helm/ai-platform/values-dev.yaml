@@ -1,0 +1,9 @@
+backend:
+  replicas: 1
+  corsOrigins: "http://dev.ai.local"
+
+frontend:
+  replicas: 1
+
+ingress:
+  host: dev.ai.local
