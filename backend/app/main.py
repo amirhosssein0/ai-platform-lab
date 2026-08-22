@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="Aegis AI Platform", version="0.1.0")
+app = FastAPI(title="AI Platform", version="0.1.0")
 
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
 
