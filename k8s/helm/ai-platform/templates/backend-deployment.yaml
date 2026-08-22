@@ -21,6 +21,20 @@ spec:
           env:
             - name: CORS_ORIGINS
               value: {{ .Values.backend.corsOrigins | quote }}
+            - name: POSTGRES_HOST
+              value: "postgres"
+            - name: POSTGRES_DB
+              value: {{ .Values.postgres.dbName | quote }}
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
           readinessProbe:
             httpGet:
               path: /api/health
