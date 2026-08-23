@@ -11,6 +11,10 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models import Conversation, Message
 from app.llm import get_llm_reply
+import json
+from fastapi.responses import StreamingResponse
+from app.llm import get_llm_reply, stream_llm_reply
+import httpx
 
 
 @asynccontextmanager
@@ -60,6 +64,45 @@ async def chat(payload: ChatRequest, db: Session = Depends(get_db)):
 
     return {"conversation_id": str(conversation.id), "reply": reply_text}
 
+@api_router.post("/chat/stream")
+async def chat_stream(payload: ChatRequest, db: Session = Depends(get_db)):
+    if payload.conversation_id:
+        conversation = db.get(Conversation, payload.conversation_id)
+        if not conversation:
+            raise HTTPException(404, "Conversation not found")
+    else:
+        conversation = Conversation()
+        db.add(conversation)
+        db.commit()
+        db.refresh(conversation)
+
+    db.add(Message(conversation_id=conversation.id, role="user", content=payload.message))
+    db.commit()
+
+    async def event_generator():
+        full_reply = ""
+        yield f"event: conversation\ndata: {conversation.id}\n\n"
+        try:
+            async for delta in stream_llm_reply(payload.message):
+                full_reply += delta
+                yield f"data: {json.dumps({'delta': delta})}\n\n"
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429:
+                error_text = "Rate limit reached on the free tier. Wait a minute and try again."
+            else:
+                error_text = f"Upstream error ({e.response.status_code})."
+            yield f"data: {json.dumps({'delta': error_text})}\n\n"
+            full_reply = error_text
+        except Exception:
+            error_text = "Something went wrong talking to the model."
+            yield f"data: {json.dumps({'delta': error_text})}\n\n"
+            full_reply = error_text
+
+        db.add(Message(conversation_id=conversation.id, role="assistant", content=full_reply))
+        db.commit()
+        yield "event: done\ndata: end\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @api_router.get("/health")
 def health_check():
