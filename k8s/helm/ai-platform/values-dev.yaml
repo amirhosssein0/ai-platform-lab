@@ -10,3 +10,6 @@ ingress:
 
 postgres:
   storageSize: 1Gi
+
+qdrant:
+  storageSize: 1Gi

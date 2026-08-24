@@ -12,3 +12,6 @@ postgres:
   image: postgres:16-alpine
   containerPort: 5432
   dbName: aegis
+
+qdrant:
+  image: qdrant/qdrant:v1.18.2
