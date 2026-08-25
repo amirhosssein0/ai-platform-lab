@@ -40,6 +40,8 @@ spec:
                 secretKeyRef:
                   name: openrouter-credentials
                   key: OPENROUTER_API_KEY
+            - name: QDRANT_HOST
+              value: "qdrant"
           readinessProbe:
             httpGet:
               path: /api/health
