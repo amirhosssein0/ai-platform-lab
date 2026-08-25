@@ -46,6 +46,10 @@ class ChatRequest(BaseModel):
     message: str
     image: str | None = None
 
+class ConversationUpdate(BaseModel):
+    title: str | None = None
+    pinned: bool | None = None
+
 
 def build_prompt(message: str) -> str:
     context_chunks = search_similar(message)
@@ -162,19 +166,28 @@ async def upload_document(file: UploadFile = File(...)):
 
 @api_router.get("/conversations")
 def list_conversations(db: Session = Depends(get_db)):
-    conversations = db.query(Conversation).order_by(Conversation.created_at.desc()).all()
+    conversations = (
+        db.query(Conversation)
+        .order_by(Conversation.pinned.desc(), Conversation.created_at.desc())
+        .all()
+    )
     result = []
     for c in conversations:
-        first_message = (
-            db.query(Message)
-            .filter(Message.conversation_id == c.id, Message.role == "user")
-            .order_by(Message.created_at.asc())
-            .first()
-        )
+        if c.title:
+            title = c.title
+        else:
+            first_message = (
+                db.query(Message)
+                .filter(Message.conversation_id == c.id, Message.role == "user")
+                .order_by(Message.created_at.asc())
+                .first()
+            )
+            title = first_message.content[:50] if first_message else "New conversation"
         result.append(
             {
                 "id": str(c.id),
-                "title": (first_message.content[:50] if first_message else "New conversation"),
+                "title": title,
+                "pinned": c.pinned,
                 "created_at": c.created_at.isoformat(),
             }
         )
@@ -197,6 +210,27 @@ def get_conversation_messages(conversation_id: uuid.UUID, db: Session = Depends(
         for m in messages
     ]
 
+@api_router.patch("/conversations/{conversation_id}")
+def update_conversation(conversation_id: uuid.UUID, payload: ConversationUpdate, db: Session = Depends(get_db)):
+    conversation = db.get(Conversation, conversation_id)
+    if not conversation:
+        raise HTTPException(404, "Conversation not found")
+    if payload.title is not None:
+        conversation.title = payload.title
+    if payload.pinned is not None:
+        conversation.pinned = payload.pinned
+    db.commit()
+    return {"id": str(conversation.id), "title": conversation.title, "pinned": conversation.pinned}
+
+
+@api_router.delete("/conversations/{conversation_id}")
+def delete_conversation(conversation_id: uuid.UUID, db: Session = Depends(get_db)):
+    conversation = db.get(Conversation, conversation_id)
+    if not conversation:
+        raise HTTPException(404, "Conversation not found")
+    db.delete(conversation)
+    db.commit()
+    return {"deleted": True}
 
 @api_router.get("/health")
 def health_check():
