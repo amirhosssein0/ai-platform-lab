@@ -11,6 +11,10 @@ import {
   Image as ImageIcon,
   X,
   Plus,
+  MoreVertical,
+  Pin,
+  Trash2,
+  PanelLeft,
 } from "lucide-react";
 
 type Message = {
@@ -25,6 +29,7 @@ type Message = {
 type Conversation = {
   id: string;
   title: string;
+  pinned: boolean;
   created_at: string;
 };
 
@@ -75,6 +80,12 @@ export default function Home() {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [sidebarWidth, setSidebarWidth] = useState(256);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -88,6 +99,36 @@ export default function Home() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    function handleClickOutside() {
+      setOpenMenuId(null);
+    }
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    function handleMouseMove(e: MouseEvent) {
+      setSidebarWidth(Math.min(Math.max(e.clientX, 180), 420));
+    }
+    function handleMouseUp() {
+      setIsResizing(false);
+    }
+    if (isResizing) {
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+    } else {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizing]);
 
   async function loadConversations() {
     try {
@@ -125,6 +166,66 @@ export default function Home() {
     setConversationId(null);
     setInput("");
     setAttachedFile(null);
+  }
+
+  async function togglePin(c: Conversation) {
+    setOpenMenuId(null);
+    const newPinned = !c.pinned;
+    setConversations((prev) =>
+      prev
+        .map((x) => (x.id === c.id ? { ...x, pinned: newPinned } : x))
+        .sort((a, b) =>
+          a.pinned !== b.pinned
+            ? a.pinned
+              ? -1
+              : 1
+            : new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        )
+    );
+    try {
+      await fetch(`/api/conversations/${c.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pinned: newPinned }),
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  function startRename(c: Conversation) {
+    setOpenMenuId(null);
+    setRenamingId(c.id);
+    setRenameValue(c.title);
+  }
+
+  async function submitRename() {
+    const id = renamingId;
+    if (!id) return;
+    const title = renameValue.trim() || "Untitled";
+    setRenamingId(null);
+    setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, title } : c)));
+    try {
+      await fetch(`/api/conversations/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  async function deleteConversation(id: string) {
+    setOpenMenuId(null);
+    if (!window.confirm("Delete this conversation?")) return;
+    setConversations((prev) => prev.filter((c) => c.id !== id));
+    if (conversationId === id) startNewChat();
+    try {
+      await fetch(`/api/conversations/${id}`, { method: "DELETE" });
+    } catch {
+      // ignore
+    }
   }
 
   async function runStream(
@@ -352,8 +453,11 @@ export default function Home() {
   return (
     <div className="flex h-screen bg-zinc-950 font-mono text-zinc-200">
       {/* Sidebar */}
-      <aside className="flex w-64 flex-col border-r border-zinc-800">
-        <div className="border-b border-zinc-800 p-3">
+      <aside
+        className="relative flex flex-col overflow-hidden border-r border-zinc-800 transition-[width] duration-150"
+        style={{ width: sidebarCollapsed ? 0 : sidebarWidth }}
+      >
+        <div className="border-b border-zinc-800 p-3" style={{ minWidth: sidebarWidth }}>
           <button
             onClick={startNewChat}
             className="flex w-full items-center justify-center gap-2 rounded-lg border border-zinc-800 py-2 text-sm text-zinc-200 transition-colors hover:border-lime-400 hover:text-lime-400"
@@ -362,29 +466,100 @@ export default function Home() {
             New chat
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-2">
+        <div className="flex-1 overflow-y-auto p-2" style={{ minWidth: sidebarWidth }}>
           {conversations.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => selectConversation(c.id)}
-              className={`mb-1 block w-full truncate rounded-lg px-3 py-2 text-left text-xs ${
-                c.id === conversationId
-                  ? "bg-zinc-800 text-lime-400"
-                  : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
-              }`}
-            >
-              {c.title}
-            </button>
+            <div key={c.id} className="group relative mb-1">
+              {renamingId === c.id ? (
+                <input
+                  autoFocus
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") submitRename();
+                    if (e.key === "Escape") setRenamingId(null);
+                  }}
+                  onBlur={submitRename}
+                  className="w-full rounded-lg border border-lime-400 bg-zinc-900 px-3 py-2 text-xs text-zinc-200 outline-none"
+                />
+              ) : (
+                <button
+                  onClick={() => selectConversation(c.id)}
+                  className={`flex w-full items-center gap-1.5 truncate rounded-lg px-3 py-2 text-left text-xs ${
+                    c.id === conversationId
+                      ? "bg-zinc-800 text-lime-400"
+                      : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+                  }`}
+                >
+                  {c.pinned && <Pin size={11} className="shrink-0 text-lime-400" />}
+                  <span className="truncate">{c.title}</span>
+                </button>
+              )}
+
+              {renamingId !== c.id && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenMenuId(openMenuId === c.id ? null : c.id);
+                  }}
+                  className="absolute right-1 top-1.5 rounded p-1 text-zinc-500 opacity-0 hover:bg-zinc-800 hover:text-zinc-200 group-hover:opacity-100"
+                >
+                  <MoreVertical size={13} />
+                </button>
+              )}
+
+              {openMenuId === c.id && (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute right-1 top-8 z-10 w-36 rounded-lg border border-zinc-800 bg-zinc-900 py-1 text-xs shadow-lg"
+                >
+                  <button
+                    onClick={() => togglePin(c)}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-zinc-300 hover:bg-zinc-800"
+                  >
+                    <Pin size={12} className={c.pinned ? "text-lime-400" : ""} />
+                    {c.pinned ? "Unpin" : "Pin"}
+                  </button>
+                  <button
+                    onClick={() => startRename(c)}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-zinc-300 hover:bg-zinc-800"
+                  >
+                    <Pencil size={12} />
+                    Rename
+                  </button>
+                  <button
+                    onClick={() => deleteConversation(c.id)}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-400 hover:bg-zinc-800"
+                  >
+                    <Trash2 size={12} />
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
           ))}
         </div>
+
+        <div
+          onMouseDown={() => setIsResizing(true)}
+          className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-lime-400/50"
+        />
       </aside>
 
       {/* Main chat column */}
       <main className="flex flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-zinc-800 px-5 py-3">
-          <span className="text-sm font-semibold tracking-tight text-zinc-100">
-            aegis<span className="text-lime-400">.</span>chat
-          </span>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSidebarCollapsed((v) => !v)}
+              className="text-zinc-500 hover:text-lime-400"
+              title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+            >
+              <PanelLeft size={16} />
+            </button>
+            <span className="text-sm font-semibold tracking-tight text-zinc-100">
+              aegis<span className="text-lime-400">.</span>chat
+            </span>
+          </div>
           <div className="flex items-center gap-2 text-xs text-zinc-500">
             <span
               className={`h-2 w-2 rounded-full ${
