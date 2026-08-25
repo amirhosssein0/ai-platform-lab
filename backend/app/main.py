@@ -1,9 +1,10 @@
+import os
 import io
 import json
 import uuid
-from contextlib import asynccontextmanager
-import os
 import traceback
+from contextlib import asynccontextmanager
+
 import httpx
 from fastapi import Depends, FastAPI, APIRouter, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app import models
 from app.db import Base, engine, get_db
-from app.llm import get_llm_reply, stream_llm_reply
+from app.llm import get_llm_reply, stream_llm_reply, validate_image
 from app.models import Conversation, Message
 from app.rag import embed_and_store, search_similar
 
@@ -43,6 +44,7 @@ api_router = APIRouter(prefix="/api")
 class ChatRequest(BaseModel):
     conversation_id: uuid.UUID | None = None
     message: str
+    image: str | None = None
 
 
 def build_prompt(message: str) -> str:
@@ -59,6 +61,12 @@ def build_prompt(message: str) -> str:
 
 @api_router.post("/chat")
 async def chat(payload: ChatRequest, db: Session = Depends(get_db)):
+    if payload.image:
+        try:
+            validate_image(payload.image)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
     if payload.conversation_id:
         conversation = db.get(Conversation, payload.conversation_id)
         if not conversation:
@@ -72,7 +80,10 @@ async def chat(payload: ChatRequest, db: Session = Depends(get_db)):
     db.add(Message(conversation_id=conversation.id, role="user", content=payload.message))
     db.commit()
 
-    reply_text = await get_llm_reply(build_prompt(payload.message))
+    if payload.image:
+        reply_text = await get_llm_reply(payload.message, image_data_url=payload.image)
+    else:
+        reply_text = await get_llm_reply(build_prompt(payload.message))
 
     db.add(Message(conversation_id=conversation.id, role="assistant", content=reply_text))
     db.commit()
@@ -82,6 +93,12 @@ async def chat(payload: ChatRequest, db: Session = Depends(get_db)):
 
 @api_router.post("/chat/stream")
 async def chat_stream(payload: ChatRequest, db: Session = Depends(get_db)):
+    if payload.image:
+        try:
+            validate_image(payload.image)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
     if payload.conversation_id:
         conversation = db.get(Conversation, payload.conversation_id)
         if not conversation:
@@ -99,8 +116,11 @@ async def chat_stream(payload: ChatRequest, db: Session = Depends(get_db)):
         full_reply = ""
         yield f"event: conversation\ndata: {conversation.id}\n\n"
         try:
-            prompt = build_prompt(payload.message)
-            async for delta in stream_llm_reply(prompt):
+            if payload.image:
+                stream = stream_llm_reply(payload.message, image_data_url=payload.image)
+            else:
+                stream = stream_llm_reply(build_prompt(payload.message))
+            async for delta in stream:
                 full_reply += delta
                 yield f"data: {json.dumps({'delta': delta})}\n\n"
         except httpx.HTTPStatusError as e:
@@ -138,6 +158,44 @@ async def upload_document(file: UploadFile = File(...)):
 
     chunk_count = embed_and_store(text, file.filename)
     return {"filename": file.filename, "chunks_indexed": chunk_count}
+
+
+@api_router.get("/conversations")
+def list_conversations(db: Session = Depends(get_db)):
+    conversations = db.query(Conversation).order_by(Conversation.created_at.desc()).all()
+    result = []
+    for c in conversations:
+        first_message = (
+            db.query(Message)
+            .filter(Message.conversation_id == c.id, Message.role == "user")
+            .order_by(Message.created_at.asc())
+            .first()
+        )
+        result.append(
+            {
+                "id": str(c.id),
+                "title": (first_message.content[:50] if first_message else "New conversation"),
+                "created_at": c.created_at.isoformat(),
+            }
+        )
+    return result
+
+
+@api_router.get("/conversations/{conversation_id}/messages")
+def get_conversation_messages(conversation_id: uuid.UUID, db: Session = Depends(get_db)):
+    conversation = db.get(Conversation, conversation_id)
+    if not conversation:
+        raise HTTPException(404, "Conversation not found")
+    messages = (
+        db.query(Message)
+        .filter(Message.conversation_id == conversation_id)
+        .order_by(Message.created_at.asc())
+        .all()
+    )
+    return [
+        {"role": m.role, "content": m.content, "timestamp": m.created_at.isoformat()}
+        for m in messages
+    ]
 
 
 @api_router.get("/health")
