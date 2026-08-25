@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Pencil, RotateCw, Copy, Check } from "lucide-react";
+import { Pencil, RotateCw, Copy, Check, Paperclip } from "lucide-react";
 
 type Message = {
   role: "user" | "assistant";
@@ -41,7 +41,9 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetch("/api/health")
@@ -194,6 +196,27 @@ export default function Home() {
     setTimeout(() => setCopiedIndex(null), 1500);
   }
 
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadStatus(`Indexing ${file.name}...`);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("/api/documents/upload", { method: "POST", body: formData });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setUploadStatus(`Indexed ${file.name} — ${data.chunks_indexed} chunks`);
+    } catch {
+      setUploadStatus(`Failed to index ${file.name}`);
+    } finally {
+      e.target.value = "";
+      setTimeout(() => setUploadStatus(null), 4000);
+    }
+  }
+
   function formatTime(date: Date) {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
@@ -273,22 +296,39 @@ export default function Home() {
       </div>
 
       <div className="border-t border-zinc-800 bg-zinc-950 px-4 py-4">
-        <div className="mx-auto flex max-w-2xl items-end gap-2">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            rows={1}
-            placeholder="Type a message..."
-            className="flex-1 resize-none rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 outline-none focus:border-lime-400"
-          />
-          <button
-            onClick={sendMessage}
-            disabled={loading || !input.trim()}
-            className="rounded-lg bg-lime-400 px-4 py-3 text-sm font-medium text-zinc-950 transition-opacity disabled:opacity-30"
-          >
-            Send
-          </button>
+        <div className="mx-auto max-w-2xl">
+          {uploadStatus && <p className="mb-2 text-xs text-zinc-500">{uploadStatus}</p>}
+          <div className="flex items-end gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.txt,.md"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="rounded-lg border border-zinc-800 p-3 text-zinc-400 transition-colors hover:border-lime-400 hover:text-lime-400"
+              title="Attach document"
+            >
+              <Paperclip size={16} />
+            </button>
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              rows={1}
+              placeholder="Type a message..."
+              className="flex-1 resize-none rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 outline-none focus:border-lime-400"
+            />
+            <button
+              onClick={sendMessage}
+              disabled={loading || !input.trim()}
+              className="rounded-lg bg-lime-400 px-4 py-3 text-sm font-medium text-zinc-950 transition-opacity disabled:opacity-30"
+            >
+              Send
+            </button>
+          </div>
         </div>
       </div>
     </main>
