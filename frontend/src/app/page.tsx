@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Pencil, RotateCw, Copy, Check, Paperclip } from "lucide-react";
+import { Pencil, RotateCw, Copy, Check, Paperclip, FileText, X } from "lucide-react";
 
 type Message = {
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  attachment?: string;
 };
 
 function SpinnerAsterisk() {
@@ -41,7 +42,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
-  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -94,26 +95,57 @@ export default function Home() {
     }
   }
 
+  async function uploadFile(file: File): Promise<boolean> {
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await fetch("/api/documents/upload", { method: "POST", body: formData });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
   async function sendMessage() {
-    if (!input.trim() || loading) return;
+    if ((!input.trim() && !attachedFile) || loading) return;
     const text = input;
+    const file = attachedFile;
     setInput("");
+    setAttachedFile(null);
+
     setMessages((prev) => [
       ...prev,
-      { role: "user", content: text, timestamp: new Date() },
+      { role: "user", content: text, timestamp: new Date(), attachment: file?.name },
       { role: "assistant", content: "", timestamp: new Date() },
     ]);
     setLoading(true);
 
     try {
-      await runStream(text, (delta) => {
+      if (file) {
+        const ok = await uploadFile(file);
+        if (!ok) throw new Error("upload failed");
+      }
+
+      if (text.trim()) {
+        await runStream(text, (delta) => {
+          setMessages((prev) => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            updated[updated.length - 1] = { ...last, content: last.content + delta };
+            return updated;
+          });
+        });
+      } else {
         setMessages((prev) => {
           const updated = [...prev];
-          const last = updated[updated.length - 1];
-          updated[updated.length - 1] = { ...last, content: last.content + delta };
+          updated[updated.length - 1] = {
+            role: "assistant",
+            content: `Indexed ${file?.name}. Ask me anything about it.`,
+            timestamp: new Date(),
+          };
           return updated;
         });
-      });
+      }
     } catch {
       setMessages((prev) => {
         const updated = [...prev];
@@ -196,25 +228,10 @@ export default function Home() {
     setTimeout(() => setCopiedIndex(null), 1500);
   }
 
-  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploadStatus(`Indexing ${file.name}...`);
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const res = await fetch("/api/documents/upload", { method: "POST", body: formData });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setUploadStatus(`Indexed ${file.name} — ${data.chunks_indexed} chunks`);
-    } catch {
-      setUploadStatus(`Failed to index ${file.name}`);
-    } finally {
-      e.target.value = "";
-      setTimeout(() => setUploadStatus(null), 4000);
-    }
+    if (file) setAttachedFile(file);
+    e.target.value = "";
   }
 
   function formatTime(date: Date) {
@@ -254,17 +271,27 @@ export default function Home() {
             const isThinking = isStreaming && m.content === "";
             return (
               <div key={i} className="group flex flex-col gap-1">
-                <div className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div
-                    className={`max-w-[80%] whitespace-pre-wrap rounded-lg px-4 py-2 text-sm leading-relaxed ${
-                      m.role === "user"
-                        ? "bg-lime-400 text-zinc-950"
-                        : "border border-zinc-800 bg-zinc-900 text-zinc-200"
-                    }`}
-                  >
-                    {isThinking ? <SpinnerAsterisk /> : m.content}
+                {m.role === "user" && m.attachment && (
+                  <div className="flex justify-end">
+                    <div className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-300">
+                      <FileText size={14} className="text-lime-400" />
+                      {m.attachment}
+                    </div>
                   </div>
-                </div>
+                )}
+                {m.content !== "" || m.role === "assistant" ? (
+                  <div className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                    <div
+                      className={`max-w-[80%] whitespace-pre-wrap rounded-lg px-4 py-2 text-sm leading-relaxed ${
+                        m.role === "user"
+                          ? "bg-lime-400 text-zinc-950"
+                          : "border border-zinc-800 bg-zinc-900 text-zinc-200"
+                      }`}
+                    >
+                      {isThinking ? <SpinnerAsterisk /> : m.content}
+                    </div>
+                  </div>
+                ) : null}
 
                 {!isStreaming && (
                   <div
@@ -297,13 +324,21 @@ export default function Home() {
 
       <div className="border-t border-zinc-800 bg-zinc-950 px-4 py-4">
         <div className="mx-auto max-w-2xl">
-          {uploadStatus && <p className="mb-2 text-xs text-zinc-500">{uploadStatus}</p>}
+          {attachedFile && (
+            <div className="mb-2 flex w-fit items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-300">
+              <FileText size={14} className="text-lime-400" />
+              <span>{attachedFile.name}</span>
+              <button onClick={() => setAttachedFile(null)} className="text-zinc-500 hover:text-zinc-200">
+                <X size={13} />
+              </button>
+            </div>
+          )}
           <div className="flex items-end gap-2">
             <input
               ref={fileInputRef}
               type="file"
               accept=".pdf,.txt,.md"
-              onChange={handleFileUpload}
+              onChange={handleFileSelect}
               className="hidden"
             />
             <button
@@ -323,7 +358,7 @@ export default function Home() {
             />
             <button
               onClick={sendMessage}
-              disabled={loading || !input.trim()}
+              disabled={loading || (!input.trim() && !attachedFile)}
               className="rounded-lg bg-lime-400 px-4 py-3 text-sm font-medium text-zinc-950 transition-opacity disabled:opacity-30"
             >
               Send
