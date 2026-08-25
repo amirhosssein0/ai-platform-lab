@@ -1,20 +1,22 @@
-import os
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, APIRouter
-from fastapi.middleware.cors import CORSMiddleware
-from app.db import Base, engine
-from app import models 
-import uuid
-from pydantic import BaseModel
-from fastapi import Depends, HTTPException
-from sqlalchemy.orm import Session
-from app.db import get_db
-from app.models import Conversation, Message
-from app.llm import get_llm_reply
+import io
 import json
-from fastapi.responses import StreamingResponse
-from app.llm import get_llm_reply, stream_llm_reply
+import uuid
+from contextlib import asynccontextmanager
+import os
+import traceback
 import httpx
+from fastapi import Depends, FastAPI, APIRouter, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from pypdf import PdfReader
+from sqlalchemy.orm import Session
+
+from app import models
+from app.db import Base, engine, get_db
+from app.llm import get_llm_reply, stream_llm_reply
+from app.models import Conversation, Message
+from app.rag import embed_and_store, search_similar
 
 
 @asynccontextmanager
@@ -37,9 +39,22 @@ app.add_middleware(
 
 api_router = APIRouter(prefix="/api")
 
+
 class ChatRequest(BaseModel):
     conversation_id: uuid.UUID | None = None
     message: str
+
+
+def build_prompt(message: str) -> str:
+    context_chunks = search_similar(message)
+    if not context_chunks:
+        return message
+    context_text = "\n\n".join(context_chunks)
+    return (
+        "Answer the question using the context below if it's relevant. "
+        "If the context isn't relevant, answer normally.\n\n"
+        f"Context:\n{context_text}\n\nQuestion: {message}"
+    )
 
 
 @api_router.post("/chat")
@@ -57,12 +72,13 @@ async def chat(payload: ChatRequest, db: Session = Depends(get_db)):
     db.add(Message(conversation_id=conversation.id, role="user", content=payload.message))
     db.commit()
 
-    reply_text = await get_llm_reply(payload.message)
+    reply_text = await get_llm_reply(build_prompt(payload.message))
 
     db.add(Message(conversation_id=conversation.id, role="assistant", content=reply_text))
     db.commit()
 
     return {"conversation_id": str(conversation.id), "reply": reply_text}
+
 
 @api_router.post("/chat/stream")
 async def chat_stream(payload: ChatRequest, db: Session = Depends(get_db)):
@@ -83,7 +99,8 @@ async def chat_stream(payload: ChatRequest, db: Session = Depends(get_db)):
         full_reply = ""
         yield f"event: conversation\ndata: {conversation.id}\n\n"
         try:
-            async for delta in stream_llm_reply(payload.message):
+            prompt = build_prompt(payload.message)
+            async for delta in stream_llm_reply(prompt):
                 full_reply += delta
                 yield f"data: {json.dumps({'delta': delta})}\n\n"
         except httpx.HTTPStatusError as e:
@@ -94,6 +111,7 @@ async def chat_stream(payload: ChatRequest, db: Session = Depends(get_db)):
             yield f"data: {json.dumps({'delta': error_text})}\n\n"
             full_reply = error_text
         except Exception:
+            traceback.print_exc()
             error_text = "Something went wrong talking to the model."
             yield f"data: {json.dumps({'delta': error_text})}\n\n"
             full_reply = error_text
@@ -103,6 +121,24 @@ async def chat_stream(payload: ChatRequest, db: Session = Depends(get_db)):
         yield "event: done\ndata: end\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@api_router.post("/documents/upload")
+async def upload_document(file: UploadFile = File(...)):
+    content = await file.read()
+
+    if file.filename.lower().endswith(".pdf"):
+        reader = PdfReader(io.BytesIO(content))
+        text = "\n".join(page.extract_text() or "" for page in reader.pages)
+    else:
+        text = content.decode("utf-8", errors="ignore")
+
+    if not text.strip():
+        raise HTTPException(400, "No extractable text found in file")
+
+    chunk_count = embed_and_store(text, file.filename)
+    return {"filename": file.filename, "chunks_indexed": chunk_count}
+
 
 @api_router.get("/health")
 def health_check():
