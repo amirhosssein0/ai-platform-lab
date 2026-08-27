@@ -88,6 +88,7 @@ export default function Home() {
   const [isResizing, setIsResizing] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     fetch("/api/health")
@@ -101,12 +102,16 @@ export default function Home() {
   }, [messages]);
 
   useEffect(() => {
-    function handleClickOutside() {
-      setOpenMenuId(null);
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenuId(null);
+      }
     }
-    document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
-  }, []);
+    if (openMenuId) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [openMenuId]);
 
   useEffect(() => {
     function handleMouseMove(e: MouseEvent) {
@@ -468,7 +473,12 @@ export default function Home() {
         </div>
         <div className="flex-1 overflow-y-auto p-2" style={{ minWidth: sidebarWidth }}>
           {conversations.map((c) => (
-            <div key={c.id} className="group relative mb-1">
+            <div
+              key={c.id}
+              className={`group relative mb-1 flex items-center rounded-lg ${
+                c.id === conversationId ? "bg-zinc-800" : "hover:bg-zinc-900"
+              }`}
+            >
               {renamingId === c.id ? (
                 <input
                   autoFocus
@@ -482,35 +492,33 @@ export default function Home() {
                   className="w-full rounded-lg border border-lime-400 bg-zinc-900 px-3 py-2 text-xs text-zinc-200 outline-none"
                 />
               ) : (
-                <button
-                  onClick={() => selectConversation(c.id)}
-                  className={`flex w-full items-center gap-1.5 truncate rounded-lg px-3 py-2 text-left text-xs ${
-                    c.id === conversationId
-                      ? "bg-zinc-800 text-lime-400"
-                      : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
-                  }`}
-                >
-                  {c.pinned && <Pin size={11} className="shrink-0 text-lime-400" />}
-                  <span className="truncate">{c.title}</span>
-                </button>
-              )}
-
-              {renamingId !== c.id && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setOpenMenuId(openMenuId === c.id ? null : c.id);
-                  }}
-                  className="absolute right-1 top-1.5 rounded p-1 text-zinc-500 opacity-0 hover:bg-zinc-800 hover:text-zinc-200 group-hover:opacity-100"
-                >
-                  <MoreVertical size={13} />
-                </button>
+                <>
+                  <button
+                    onClick={() => selectConversation(c.id)}
+                    className={`flex min-w-0 flex-1 items-center gap-1.5 truncate rounded-lg px-3 py-2 text-left text-xs ${
+                      c.id === conversationId ? "text-lime-400" : "text-zinc-400 hover:text-zinc-200"
+                    }`}
+                  >
+                    {c.pinned && <Pin size={11} className="shrink-0 text-lime-400" />}
+                    <span className="truncate">{c.title}</span>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenMenuId(openMenuId === c.id ? null : c.id);
+                    }}
+                    className="mr-1 shrink-0 rounded p-1.5 text-zinc-500 opacity-0 hover:bg-zinc-700 hover:text-zinc-200 group-hover:opacity-100"
+                  >
+                    <MoreVertical size={13} />
+                  </button>
+                </>
               )}
 
               {openMenuId === c.id && (
                 <div
+                  ref={menuRef}
                   onClick={(e) => e.stopPropagation()}
-                  className="absolute right-1 top-8 z-10 w-36 rounded-lg border border-zinc-800 bg-zinc-900 py-1 text-xs shadow-lg"
+                  className="absolute right-1 top-9 z-10 w-36 rounded-lg border border-zinc-800 bg-zinc-900 py-1 text-xs shadow-lg"
                 >
                   <button
                     onClick={() => togglePin(c)}
