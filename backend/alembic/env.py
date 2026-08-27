@@ -6,7 +6,7 @@ from app import models
 from app.db import Base, DATABASE_URL
 
 config = context.config
-config.set_main_option("sqlalchemy.url", DATABASE_URL)
+config.set_main_option("sqlalchemy.url", DATABASE_URL.render_as_string(hide_password=False))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
