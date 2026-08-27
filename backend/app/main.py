@@ -22,7 +22,6 @@ from app.rag import embed_and_store, search_similar
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
     yield
 
 
