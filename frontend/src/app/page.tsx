@@ -86,6 +86,7 @@ export default function Home() {
   const [sidebarWidth, setSidebarWidth] = useState(256);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -221,9 +222,15 @@ export default function Home() {
     }
   }
 
-  async function deleteConversation(id: string) {
+  function requestDelete(id: string) {
     setOpenMenuId(null);
-    if (!window.confirm("Delete this conversation?")) return;
+    setDeleteTargetId(id);
+  }
+
+  async function confirmDelete() {
+    const id = deleteTargetId;
+    setDeleteTargetId(null);
+    if (!id) return;
     setConversations((prev) => prev.filter((c) => c.id !== id));
     if (conversationId === id) startNewChat();
     try {
@@ -535,7 +542,7 @@ export default function Home() {
                     Rename
                   </button>
                   <button
-                    onClick={() => deleteConversation(c.id)}
+                    onClick={() => requestDelete(c.id)}
                     className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-400 hover:bg-zinc-800"
                   >
                     <Trash2 size={12} />
@@ -703,6 +710,31 @@ export default function Home() {
           </div>
         </div>
       </main>
+
+      {deleteTargetId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="w-80 rounded-lg border border-zinc-800 bg-zinc-900 p-5">
+            <h2 className="text-sm font-semibold text-zinc-100">Delete chat?</h2>
+            <p className="mt-2 text-xs text-zinc-400">
+              Are you sure you want to delete this chat?
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setDeleteTargetId(null)}
+                className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="rounded-lg border border-red-500 bg-red-600/20 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-600/30"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
