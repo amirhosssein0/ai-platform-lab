@@ -20,3 +20,7 @@ resourceQuota:
   limitsCpu: "8"
   limitsMemory: 16Gi
   maxPods: 30
+
+vault:
+  role: prod-backend
+  secretPath: secret/data/prod/backend
