@@ -18,6 +18,8 @@ spec:
           imagePullPolicy: {{ .Values.frontend.imagePullPolicy }}
           ports:
             - containerPort: {{ .Values.frontend.containerPort }}
+          resources:
+            {{- toYaml .Values.frontend.resources | nindent 12 }}
           readinessProbe:
             httpGet:
               path: /

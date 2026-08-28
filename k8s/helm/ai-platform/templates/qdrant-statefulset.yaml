@@ -21,6 +21,8 @@ spec:
               name: http
             - containerPort: 6334
               name: grpc
+          resources:
+            {{- toYaml .Values.qdrant.resources | nindent 12 }}
           volumeMounts:
             - name: qdrant-storage
               mountPath: /qdrant/storage

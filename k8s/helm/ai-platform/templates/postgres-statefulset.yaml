@@ -18,6 +18,8 @@ spec:
           image: {{ .Values.postgres.image }}
           ports:
             - containerPort: {{ .Values.postgres.containerPort }}
+          resources:
+            {{- toYaml .Values.postgres.resources | nindent 12 }}
           env:
             - name: POSTGRES_USER
               valueFrom:

@@ -18,6 +18,8 @@ spec:
           imagePullPolicy: {{ .Values.backend.imagePullPolicy }}
           ports:
             - containerPort: {{ .Values.backend.containerPort }}
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
           env:
             - name: CORS_ORIGINS
               value: {{ .Values.backend.corsOrigins | quote }}
