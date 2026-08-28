@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: aegis-quota
+spec:
+  hard:
+    requests.cpu: {{ .Values.resourceQuota.requestsCpu }}
+    requests.memory: {{ .Values.resourceQuota.requestsMemory }}
+    limits.cpu: {{ .Values.resourceQuota.limitsCpu }}
+    limits.memory: {{ .Values.resourceQuota.limitsMemory }}
+    pods: "{{ .Values.resourceQuota.maxPods }}"

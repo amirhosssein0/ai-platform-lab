@@ -13,3 +13,10 @@ postgres:
 
 qdrant:
   storageSize: 5Gi
+
+resourceQuota:
+  requestsCpu: "4"
+  requestsMemory: 8Gi
+  limitsCpu: "8"
+  limitsMemory: 16Gi
+  maxPods: 30
