@@ -100,6 +100,13 @@ spec:
         - protocol: TCP
           port: 6334
     - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vault
+      ports:
+        - protocol: TCP
+          port: 8200
+    - to:
         - ipBlock:
             cidr: 0.0.0.0/0
       ports:
