@@ -6,52 +6,105 @@ on:
   pull_request:
     branches: [develop, master]
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
-  backend:
+  backend-check:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
+      - run: pip install -r requirements.txt
       - name: Lint (non-blocking for now)
         continue-on-error: true
         run: |
           pip install ruff
           ruff check .
-
-      - name: Build Docker image
+      - name: Build Docker image (verify buildability)
         run: docker build -t ai-backend:ci .
 
-  frontend:
+  frontend-check:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-
-      - name: Install dependencies
-        run: npm ci
-
+      - run: npm ci
       - name: Lint (non-blocking for now)
         continue-on-error: true
         run: npm run lint
-
-      - name: Build
-        run: npm run build
-
-      - name: Build Docker image
+      - run: npm run build
+      - name: Build Docker image (verify buildability)
         run: docker build -t ai-frontend:ci .
+
+  release:
+    if: github.event_name == 'push'
+    needs: [backend-check, frontend-check]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set short SHA
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Determine target values file
+        id: env
+        run: |
+          if [ "${{ github.ref_name }}" = "develop" ]; then
+            echo "values_file=k8s/helm/ai-platform/values-dev.yaml" >> "$GITHUB_OUTPUT"
+          else
+            echo "values_file=k8s/helm/ai-platform/values-prod.yaml" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/ai-platform-lab/backend:${{ steps.vars.outputs.sha_short }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/ai-platform-lab/frontend:${{ steps.vars.outputs.sha_short }}
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Bump image tags in Helm values
+        run: |
+          yq -i '.backend.image.tag = "${{ steps.vars.outputs.sha_short }}"' ${{ steps.env.outputs.values_file }}
+          yq -i '.frontend.image.tag = "${{ steps.vars.outputs.sha_short }}"' ${{ steps.env.outputs.values_file }}
+
+      - name: Commit and push updated tags
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ${{ steps.env.outputs.values_file }}
+          git commit -m "chore(ci): bump image tags to ${{ steps.vars.outputs.sha_short }} [skip ci]" || echo "Nothing to commit"
+          git push

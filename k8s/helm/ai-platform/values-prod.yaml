@@ -1,9 +1,13 @@
 backend:
   replicas: 2
   corsOrigins: "http://prod.ai.local"
+  image:
+    tag: "local"
 
 frontend:
   replicas: 2
+  image:
+    tag: "local"
 
 ingress:
   host: prod.ai.local

@@ -1,6 +1,7 @@
 backend:
-  image: ai-backend:local
-  imagePullPolicy: Never
+  image:
+    repository: ghcr.io/amirhosssein0/ai-platform-lab/backend
+  imagePullPolicy: IfNotPresent
   containerPort: 8000
   resources:
     requests:
@@ -11,8 +12,9 @@ backend:
       memory: 1Gi
 
 frontend:
-  image: ai-frontend:local
-  imagePullPolicy: Never
+  image:
+    repository: ghcr.io/amirhosssein0/ai-platform-lab/frontend
+  imagePullPolicy: IfNotPresent
   containerPort: 3000
   resources:
     requests:
