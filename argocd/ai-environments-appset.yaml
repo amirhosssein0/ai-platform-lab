@@ -1,0 +1,39 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: aegis-environments
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - env: dev
+            namespace: dev
+            branch: develop
+            valuesFile: values-dev.yaml
+          - env: prod
+            namespace: prod
+            branch: master
+            valuesFile: values-prod.yaml
+  template:
+    metadata:
+      name: 'aegis-{{env}}'
+      namespace: argocd
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/amirhosssein0/ai-platform-lab.git
+        targetRevision: '{{branch}}'
+        path: k8s/helm/ai-platform
+        helm:
+          valueFiles:
+            - '{{valuesFile}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
