@@ -2,29 +2,23 @@ backend:
   replicas: 1
   corsOrigins: "http://dev.ai.local"
   image:
-    tag: "local"
-
+    tag: "c8979b5"
 frontend:
   replicas: 1
   image:
-    tag: "local"
-
+    tag: "c8979b5"
 ingress:
   host: dev.ai.local
-
 postgres:
   storageSize: 1Gi
-
 qdrant:
   storageSize: 1Gi
-
 resourceQuota:
   requestsCpu: "2"
   requestsMemory: 4Gi
   limitsCpu: "4"
   limitsMemory: 8Gi
   maxPods: 20
-
 vault:
   role: dev-backend
   secretPath: secret/data/dev/backend
