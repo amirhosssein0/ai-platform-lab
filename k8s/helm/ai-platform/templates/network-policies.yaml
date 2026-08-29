@@ -154,3 +154,24 @@ spec:
           port: 6333
         - protocol: TCP
           port: 6334
+
+---
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-postgres-egress-vault
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vault
+      ports:
+        - protocol: TCP
+          port: 8200
