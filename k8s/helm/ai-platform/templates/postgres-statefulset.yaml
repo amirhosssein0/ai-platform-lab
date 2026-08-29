@@ -12,40 +12,45 @@ spec:
     metadata:
       labels:
         app: postgres
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/agent-pre-populate-only: "true"
+        vault.hashicorp.com/role: "{{ .Values.vault.postgresRole }}"
+        vault.hashicorp.com/agent-inject-secret-postgres-user: "{{ .Values.vault.secretPath }}"
+        vault.hashicorp.com/agent-inject-template-postgres-user: |
+          {{ "{{-" }} with secret "{{ .Values.vault.secretPath }}" {{ "-}}" }}{{ "{{-" }} .Data.data.POSTGRES_USER {{ "-}}" }}{{ "{{-" }} end {{ "-}}" }}
+        vault.hashicorp.com/agent-inject-secret-postgres-password: "{{ .Values.vault.secretPath }}"
+        vault.hashicorp.com/agent-inject-template-postgres-password: |
+          {{ "{{-" }} with secret "{{ .Values.vault.secretPath }}" {{ "-}}" }}{{ "{{-" }} .Data.data.POSTGRES_PASSWORD {{ "-}}" }}{{ "{{-" }} end {{ "-}}" }}
     spec:
+      serviceAccountName: postgres
       containers:
         - name: postgres
           image: {{ .Values.postgres.image }}
           ports:
             - containerPort: {{ .Values.postgres.containerPort }}
-          resources:
-            {{- toYaml .Values.postgres.resources | nindent 12 }}
           env:
-            - name: POSTGRES_USER
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-credentials
-                  key: POSTGRES_USER
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-credentials
-                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_USER_FILE
+              value: /vault/secrets/postgres-user
+            - name: POSTGRES_PASSWORD_FILE
+              value: /vault/secrets/postgres-password
             - name: POSTGRES_DB
               value: {{ .Values.postgres.dbName | quote }}
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
+          resources:
+            {{- toYaml .Values.postgres.resources | nindent 12 }}
           volumeMounts:
             - name: postgres-storage
               mountPath: /var/lib/postgresql/data
           readinessProbe:
             exec:
-              command: ["pg_isready", "-U", "$(POSTGRES_USER)"]
+              command: ["pg_isready", "-U", "aegis"]
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             exec:
-              command: ["pg_isready", "-U", "$(POSTGRES_USER)"]
+              command: ["pg_isready", "-U", "aegis"]
             initialDelaySeconds: 15
             periodSeconds: 20
   volumeClaimTemplates:

@@ -24,3 +24,4 @@ resourceQuota:
 vault:
   role: dev-backend
   secretPath: secret/data/dev/backend
+  postgresRole: dev-postgres

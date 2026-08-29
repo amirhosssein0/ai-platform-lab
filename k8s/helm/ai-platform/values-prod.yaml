@@ -24,3 +24,4 @@ resourceQuota:
 vault:
   role: prod-backend
   secretPath: secret/data/prod/backend
+  postgresRole: prod-postgres
