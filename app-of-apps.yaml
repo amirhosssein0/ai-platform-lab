@@ -7,7 +7,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/amirhosssein0/ai-platform-lab.git
-    targetRevision: master
+    targetRevision: develop
     path: argocd
     directory:
       recurse: false
