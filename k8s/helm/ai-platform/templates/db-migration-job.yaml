@@ -34,10 +34,10 @@ spec:
               value: "postgres"
             - name: POSTGRES_DB
               value: {{ .Values.postgres.dbName | quote }}
-                    resources:
-          requests:
-            cpu: 50m
-            memory: 128Mi
-          limits:
-            cpu: 250m
-            memory: 256Mi
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
