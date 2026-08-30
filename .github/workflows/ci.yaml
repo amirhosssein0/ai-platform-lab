@@ -48,9 +48,61 @@ jobs:
       - name: Build Docker image (verify buildability)
         run: docker build -t ai-frontend:ci .
 
+  migration-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: aegis
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: aegis
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Run migrations against a real Postgres
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: aegis
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: aegis
+        run: alembic upgrade head
+      - name: Verify expected schema
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: aegis
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: aegis
+        run: |
+          python - <<'EOF'
+          from sqlalchemy import inspect
+          from app.db import engine
+
+          inspector = inspect(engine)
+          conv_columns = {c["name"] for c in inspector.get_columns("conversations")}
+          msg_columns = {c["name"] for c in inspector.get_columns("messages")}
+
+          assert "pinned" in conv_columns, "conversations.pinned is missing!"
+          assert {"id", "conversation_id", "role", "content"}.issubset(msg_columns), "messages table missing expected columns"
+          print("Schema check passed.")
+          EOF
+
   release:
     if: github.event_name == 'push'
-    needs: [backend-check, frontend-check]
+    needs: [backend-check, frontend-check, migration-test]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
