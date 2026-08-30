@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migration
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: db-migration
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/agent-pre-populate-only: "true"
+        vault.hashicorp.com/role: "{{ .Values.vault.role }}"
+        vault.hashicorp.com/agent-inject-secret-config: "{{ .Values.vault.secretPath }}"
+        vault.hashicorp.com/agent-inject-template-config: |
+          {{ "{{-" }} with secret "{{ .Values.vault.secretPath }}" {{ "-}}" }}
+          {{ "{{-" }} range $k, $v := .Data.data {{ "}}" }}
+          export {{ "{{" }} $k {{ "}}" }}="{{ "{{" }} $v {{ "}}" }}"
+          {{ "{{-" }} end {{ "-}}" }}
+          {{ "{{-" }} end {{ "-}}" }}
+    spec:
+      serviceAccountName: backend
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          command: ["sh", "-c", ". /vault/secrets/config && alembic upgrade head"]
+          env:
+            - name: POSTGRES_HOST
+              value: "postgres"
+            - name: POSTGRES_DB
+              value: {{ .Values.postgres.dbName | quote }}
