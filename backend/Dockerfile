@@ -27,6 +27,8 @@ ENV PATH="/opt/venv/bin:$PATH"
 WORKDIR /app
 
 COPY --chown=appuser:appuser app ./app
+COPY alembic.ini .
+COPY alembic ./alembic
 
 USER appuser
 
