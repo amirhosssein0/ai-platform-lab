@@ -29,6 +29,14 @@ jobs:
           ruff check .
       - name: Build Docker image (verify buildability)
         run: docker build -t ai-backend:ci .
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@0.24.0
+        continue-on-error: true
+        with:
+          image-ref: ai-backend:ci
+          format: table
+          exit-code: "0"
+          severity: CRITICAL,HIGH
 
   frontend-check:
     runs-on: ubuntu-latest
@@ -47,6 +55,14 @@ jobs:
       - run: npm run build
       - name: Build Docker image (verify buildability)
         run: docker build -t ai-frontend:ci .
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@0.24.0
+        continue-on-error: true
+        with:
+          image-ref: ai-frontend:ci
+          format: table
+          exit-code: "0"
+          severity: CRITICAL,HIGH
 
   migration-test:
     runs-on: ubuntu-latest
