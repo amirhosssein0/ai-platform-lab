@@ -23,12 +23,20 @@ spec:
           {{ "{{-" }} end {{ "-}}" }}
           {{ "{{-" }} end {{ "-}}" }}
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       serviceAccountName: backend
       restartPolicy: Never
       containers:
         - name: migrate
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
           command: ["sh", "-c", ". /vault/secrets/config && alembic upgrade head"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: POSTGRES_HOST
               value: "postgres"

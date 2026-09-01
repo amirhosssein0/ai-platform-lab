@@ -23,12 +23,19 @@ spec:
         vault.hashicorp.com/agent-inject-template-postgres-password: |
           {{ "{{-" }} with secret "{{ .Values.vault.secretPath }}" {{ "-}}" }}{{ "{{-" }} .Data.data.POSTGRES_PASSWORD {{ "-}}" }}{{ "{{-" }} end {{ "-}}" }}
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       serviceAccountName: postgres
       containers:
         - name: postgres
           image: {{ .Values.postgres.image }}
           ports:
             - containerPort: {{ .Values.postgres.containerPort }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: POSTGRES_USER_FILE
               value: /vault/secrets/postgres-user
