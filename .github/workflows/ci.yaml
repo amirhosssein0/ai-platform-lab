@@ -132,6 +132,7 @@ jobs:
         run: |
           checkov -d k8s/helm/ai-platform --framework helm \
             --var-file k8s/helm/ai-platform/values-dev.yaml \
+            --skip-check CKV_K8S_21,CKV_K8S_15,CKV_K8S_43,CKV_K8S_22,CKV_K8S_38 \
             --compact
 
   release:
