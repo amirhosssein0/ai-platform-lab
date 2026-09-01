@@ -116,6 +116,24 @@ jobs:
           print("Schema check passed.")
           EOF
 
+  checkov-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Install Checkov
+        run: pip install checkov
+
+      - name: Scan Helm chart (dev values)
+        continue-on-error: true
+        run: |
+          checkov -d k8s/helm/ai-platform --framework helm \
+            --var-file k8s/helm/ai-platform/values-dev.yaml \
+            --compact
+
   release:
     if: github.event_name == 'push'
     needs: [backend-check, frontend-check, migration-test]
