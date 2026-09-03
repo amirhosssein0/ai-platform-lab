@@ -1,0 +1,28 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-ai-platform-images
+spec:
+  validationFailureAction: Audit
+  background: false
+  webhookTimeoutSeconds: 30
+  rules:
+    - name: verify-signature
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - dev
+                - prod
+      verifyImages:
+        - imageReferences:
+            - "ghcr.io/amirhosssein0/ai-platform-lab/*"
+          attestors:
+            - entries:
+                - keyless:
+                    subjectRegExp: "^https://github\\.com/amirhosssein0/ai-platform-lab/\\.github/workflows/ci\\.yaml@refs/heads/(develop|master)$"
+                    issuer: "https://token.actions.githubusercontent.com"
+                    rekor:
+                      url: https://rekor.sigstore.dev
