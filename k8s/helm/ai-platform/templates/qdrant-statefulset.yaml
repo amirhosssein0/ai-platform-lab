@@ -1,4 +1,6 @@
 apiVersion: apps/v1
+# checkov:skip=CKV_K8S_23: official qdrant/qdrant image ships no built-in non-root user; forcing one without confirming its internal file-permission needs risks breaking the running vector store.
+# checkov:skip=CKV_K8S_40: see CKV_K8S_23 above.
 kind: StatefulSet
 metadata:
   name: qdrant
