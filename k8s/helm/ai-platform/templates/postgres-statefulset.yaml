@@ -1,4 +1,5 @@
 apiVersion: apps/v1
+# checkov:skip=CKV_K8S_40: postgres:16-alpine hardcodes UID 70 for its postgres user; existing PVC data is already owned by UID 70, forcing a high UID would break file ownership on live data.
 kind: StatefulSet
 metadata:
   name: postgres
@@ -24,6 +25,7 @@ spec:
           {{ "{{-" }} with secret "{{ .Values.vault.secretPath }}" {{ "-}}" }}{{ "{{-" }} .Data.data.POSTGRES_PASSWORD {{ "-}}" }}{{ "{{-" }} end {{ "-}}" }}
     spec:
       securityContext:
+        runAsUser: 70
         seccompProfile:
           type: RuntimeDefault
       serviceAccountName: postgres
