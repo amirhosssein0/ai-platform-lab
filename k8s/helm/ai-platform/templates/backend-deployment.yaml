@@ -23,9 +23,9 @@ spec:
           {{ "{{-" }} end {{ "-}}" }}
           {{ "{{-" }} end {{ "-}}" }}
     spec:
-      serviceAccountName: backend
       securityContext:
         runAsNonRoot: true
+        runAsUser: 10001
         seccompProfile:
           type: RuntimeDefault
       containers:
