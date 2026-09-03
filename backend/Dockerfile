@@ -15,10 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # ---- Stage 2: runtime ----
 FROM python:3.12-slim
 
-RUN useradd \
-    --create-home \
-    --shell /usr/sbin/nologin \
-    appuser
+RUN useradd --create-home --shell /bin/bash --uid 10001 appuser
 
 COPY --from=builder /opt/venv /opt/venv
 
