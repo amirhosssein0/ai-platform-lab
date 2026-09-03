@@ -128,7 +128,6 @@ jobs:
         run: pip install checkov
 
       - name: Scan Helm chart (dev values)
-        continue-on-error: true
         run: |
           checkov -d k8s/helm/ai-platform --framework helm \
             --var-file k8s/helm/ai-platform/values-dev.yaml \
@@ -137,7 +136,7 @@ jobs:
 
   release:
     if: github.event_name == 'push'
-    needs: [backend-check, frontend-check, migration-test]
+    needs: [backend-check, frontend-check, migration-test, checkov-scan]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
