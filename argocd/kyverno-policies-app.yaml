@@ -7,7 +7,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/amirhosssein0/ai-platform-lab.git
-    targetRevision: local
+    targetRevision: delvelop
     path: k8s/kyverno
   destination:
     server: https://kubernetes.default.svc
