@@ -3,7 +3,7 @@ kind: ClusterPolicy
 metadata:
   name: verify-ai-platform-images
 spec:
-  validationFailureAction: Audit
+  validationFailureAction: Enforce
   background: false
   webhookTimeoutSeconds: 30
   rules:
