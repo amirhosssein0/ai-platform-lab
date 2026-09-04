@@ -16,7 +16,7 @@ spec:
         valueFiles:
           - $values/k8s/falco/custom-rules-values.yaml
     - repoURL: https://github.com/amirhosssein0/ai-platform-lab.git
-      targetRevision: local
+      targetRevision: develop
       ref: values
   destination:
     server: https://kubernetes.default.svc
