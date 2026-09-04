@@ -7,12 +7,17 @@ metadata:
     argocd.argoproj.io/sync-wave: "2"
 spec:
   project: default
-  source:
-    repoURL: https://falcosecurity.github.io/charts
-    chart: falco
-    targetRevision: "9.1.0"
-    helm:
-      releaseName: falco
+  sources:
+    - repoURL: https://falcosecurity.github.io/charts
+      chart: falco
+      targetRevision: "9.1.0"
+      helm:
+        releaseName: falco
+        valueFiles:
+          - $values/k8s/falco/custom-rules-values.yaml
+    - repoURL: https://github.com/amirhosssein0/ai-platform-lab.git
+      targetRevision: local
+      ref: values
   destination:
     server: https://kubernetes.default.svc
     namespace: falco
