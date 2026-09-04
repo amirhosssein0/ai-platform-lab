@@ -28,6 +28,7 @@ spec:
         runAsUser: 10001
         seccompProfile:
           type: RuntimeDefault
+      serviceAccountName: backend
       containers:
         - name: backend
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
