@@ -14,6 +14,9 @@ spec:
       containers:
         - name: mc
           image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+          env:
+          - name: MC_CONFIG_DIR
+            value: /tmp/mc
           envFrom:
             - secretRef:
                 name: minio-credentials
