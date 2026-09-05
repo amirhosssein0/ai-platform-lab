@@ -2,11 +2,11 @@ backend:
   replicas: 1
   corsOrigins: "http://dev.ai.local"
   image:
-    tag: "b857406"
+    tag: "300d9d4"
 frontend:
   replicas: 1
   image:
-    tag: "b857406"
+    tag: "300d9d4"
 ingress:
   host: dev.ai.local
 postgres:
