@@ -6,5 +6,6 @@ spec:
   selector:
     app: backend
   ports:
-    - port: 8000
+    - name: http
+      port: 8000
       targetPort: {{ .Values.backend.containerPort }}
