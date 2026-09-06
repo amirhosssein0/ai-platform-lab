@@ -30,6 +30,8 @@ onnxruntime==1.29.0
 packaging==26.3
 pillow==12.3.0
 portalocker==3.2.0
+prometheus-fastapi-instrumentator==8.1.0
+prometheus_client==0.26.0
 protobuf==7.36.0
 psycopg2-binary==2.9.12
 py_rust_stemmers==0.1.8
@@ -40,6 +42,7 @@ python-multipart==0.0.32
 PyYAML==6.0.3
 qdrant-client==1.19.0
 requests==2.34.2
+ruff==0.16.5
 SQLAlchemy==2.0.52
 starlette==1.6.0
 tokenizers==0.23.1

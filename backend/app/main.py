@@ -19,6 +19,8 @@ from app.llm import get_llm_reply, stream_llm_reply, validate_image
 from app.models import Conversation, Message
 from app.rag import embed_and_store, search_similar
 
+from prometheus_fastapi_instrumentator import Instrumentator
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -26,6 +28,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="AI Platform", version="0.1.0", lifespan=lifespan)
+
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
 
