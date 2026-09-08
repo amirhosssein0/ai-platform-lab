@@ -43,3 +43,7 @@ def record_llm_usage(
     cost = (prompt_tokens / 1_000_000) * prompt_rate + (completion_tokens / 1_000_000) * completion_rate
     if cost:
         LLM_COST_USD_TOTAL.labels(model=model).inc(cost)
+
+def init_cost_series():
+    for model in MODEL_PRICING:
+        LLM_COST_USD_TOTAL.labels(model=model).inc(0)

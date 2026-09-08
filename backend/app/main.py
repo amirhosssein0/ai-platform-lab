@@ -20,10 +20,12 @@ from app.models import Conversation, Message
 from app.rag import embed_and_store, search_similar
 
 from prometheus_fastapi_instrumentator import Instrumentator
+from app.metrics import init_cost_series
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_cost_series()
     yield
 
 
