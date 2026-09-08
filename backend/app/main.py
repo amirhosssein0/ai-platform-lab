@@ -22,6 +22,8 @@ from app.rag import embed_and_store, search_similar
 from prometheus_fastapi_instrumentator import Instrumentator
 from app.metrics import init_cost_series
 
+from app.tracing import setup_tracing, tracer
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -30,6 +32,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="AI Platform", version="0.1.0", lifespan=lifespan)
+
+setup_tracing(app)
 
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 

@@ -2,6 +2,7 @@ alembic==1.19.1
 annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.14.2
+asgiref==3.12.1
 certifi==2026.7.22
 charset-normalizer==3.5.1
 click==8.4.2
@@ -10,6 +11,7 @@ fastembed==0.8.0
 filelock==3.32.4
 flatbuffers==25.12.19
 fsspec==2026.7.0
+googleapis-common-protos==1.75.3
 greenlet==3.5.5
 grpcio==1.83.0
 h11==0.16.0
@@ -27,6 +29,19 @@ MarkupSafe==3.0.3
 mmh3==5.2.1
 numpy==2.5.2
 onnxruntime==1.29.0
+opentelemetry-api==1.44.0
+opentelemetry-exporter-otlp==1.44.0
+opentelemetry-exporter-otlp-proto-common==1.44.0
+opentelemetry-exporter-otlp-proto-grpc==1.44.0
+opentelemetry-exporter-otlp-proto-http==1.44.0
+opentelemetry-instrumentation==0.65b0
+opentelemetry-instrumentation-asgi==0.65b0
+opentelemetry-instrumentation-fastapi==0.65b0
+opentelemetry-instrumentation-httpx==0.65b0
+opentelemetry-proto==1.44.0
+opentelemetry-sdk==1.44.0
+opentelemetry-semantic-conventions==0.65b0
+opentelemetry-util-http==0.65b0
 packaging==26.3
 pillow==12.3.0
 portalocker==3.2.0
@@ -51,3 +66,4 @@ typing-inspection==0.4.4
 typing_extensions==4.16.0
 urllib3==2.7.0
 uvicorn==0.52.4
+wrapt==2.4.0

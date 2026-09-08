@@ -6,6 +6,8 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
 from fastembed import TextEmbedding
 
+from app.tracing import tracer
+
 QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
 QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
 COLLECTION_NAME = "documents"
@@ -51,11 +53,12 @@ def embed_and_store(text: str, filename: str) -> int:
 
 
 def search_similar(query: str, top_k: int = 3) -> List[str]:
-    ensure_collection()
-    query_vector = list(embedder.embed([query]))[0].tolist()
-    results = client.query_points(
-        collection_name=COLLECTION_NAME,
-        query=query_vector,
-        limit=top_k,
-    )
-    return [point.payload["text"] for point in results.points]
+    with tracer.start_as_current_span("qdrant.search"):
+        ensure_collection()
+        query_vector = list(embedder.embed([query]))[0].tolist()
+        results = client.query_points(
+            collection_name=COLLECTION_NAME,
+            query=query_vector,
+            limit=top_k,
+        )
+        return [point.payload["text"] for point in results.points]
