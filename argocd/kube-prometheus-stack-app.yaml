@@ -34,6 +34,8 @@ spec:
                       storage: 5Gi
         alertmanager:
           alertmanagerSpec:
+            secrets:
+              - alertmanager-smtp-credentials
             resources:
               requests:
                 cpu: 50m
@@ -41,6 +43,30 @@ spec:
               limits:
                 cpu: 200m
                 memory: 256Mi
+          config:
+            global:
+              resolve_timeout: 5m
+              smtp_smarthost: 'smtp.gmail.com:587'
+              smtp_from: 'real.amirhosssein0@gmail.com'
+              smtp_auth_username: 'real.amirhosssein0@gmail.com'
+              smtp_auth_password_file: /etc/alertmanager/secrets/alertmanager-smtp-credentials/password
+              smtp_require_tls: true
+            route:
+              group_by: ['namespace', 'alertname']
+              group_wait: 30s
+              group_interval: 5m
+              repeat_interval: 12h
+              receiver: 'email-notifications'
+              routes:
+                - receiver: 'null'
+                  matchers:
+                    - alertname = "Watchdog"
+            receivers:
+              - name: 'null'
+              - name: 'email-notifications'
+                email_configs:
+                  - to: 'real.amirhosssein0@gmail.com'
+                    send_resolved: true
         grafana:
           admin:
             existingSecret: grafana-admin-credentials
@@ -56,6 +82,23 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
+
+        kubeControllerManager:
+          enabled: false
+        kubeScheduler:
+          enabled: false
+        kubeEtcd:
+          enabled: false
+        kubeProxy:
+          enabled: false
+
+        defaultRules:
+          disabled:
+            KubeControllerManagerDown: true
+            KubeSchedulerDown: true
+            KubeProxyDown: true
+            etcdMembersDown: true
+            etcdInsufficientMembers: true
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring

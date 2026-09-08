@@ -1,0 +1,94 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-platform-llm-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  ai-platform-llm-dashboard.json: |
+    {
+      "title": "AI Platform - LLM Metrics",
+      "uid": "ai-platform-llm",
+      "schemaVersion": 39,
+      "version": 1,
+      "timezone": "browser",
+      "time": { "from": "now-6h", "to": "now" },
+      "refresh": "30s",
+      "panels": [
+        {
+          "id": 1,
+          "title": "LLM Requests Rate (by model, status)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "datasource": "Prometheus",
+          "targets": [
+            { "expr": "sum(rate(llm_requests_total[5m])) by (model, status)", "legendFormat": "{{model}} - {{status}}" }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "LLM Request Latency p95 (by model)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "datasource": "Prometheus",
+          "targets": [
+            { "expr": "histogram_quantile(0.95, sum(rate(llm_request_duration_seconds_bucket[5m])) by (le, model))", "legendFormat": "{{model}} p95" }
+          ],
+          "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] }
+        },
+        {
+          "id": 3,
+          "title": "Token Usage Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "datasource": "Prometheus",
+          "targets": [
+            { "expr": "sum(rate(llm_prompt_tokens_total[5m])) by (model)", "legendFormat": "{{model}} - prompt" },
+            { "expr": "sum(rate(llm_completion_tokens_total[5m])) by (model)", "legendFormat": "{{model}} - completion" }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "HTTP Request Rate (backend API)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "datasource": "Prometheus",
+          "targets": [
+            { "expr": "sum(rate(http_requests_total[5m])) by (handler, status)", "legendFormat": "{{handler}} - {{status}}" }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "Total Tokens (24h)",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 16 },
+          "datasource": "Prometheus",
+          "targets": [
+            { "expr": "sum(increase(llm_prompt_tokens_total[24h])) + sum(increase(llm_completion_tokens_total[24h]))" }
+          ]
+        },
+        {
+          "id": 6,
+          "title": "Error Rate %",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 16 },
+          "datasource": "Prometheus",
+          "targets": [
+            { "expr": "100 * sum(rate(llm_requests_total{status=\"error\"}[5m])) / sum(rate(llm_requests_total[5m]))" }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent", "decimals": 1 }, "overrides": [] }
+        },
+        {
+          "id": 7,
+          "title": "Estimated Cumulative Cost (USD)",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 16 },
+          "datasource": "Prometheus",
+          "targets": [
+            { "expr": "sum(llm_cost_usd_total)" }
+          ],
+          "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 4 }, "overrides": [] }
+        }
+      ]
+    }
