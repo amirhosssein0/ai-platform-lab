@@ -89,6 +89,32 @@ data:
             { "expr": "sum(llm_cost_usd_total)" }
           ],
           "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 4 }, "overrides": [] }
+        },
+        {
+          "id": 8,
+          "title": "Availability Error Budget Remaining (7d)",
+          "type": "gauge",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+          "datasource": "Prometheus",
+          "targets": [
+            { "expr": "100 * (1 - ((1 - job:http_availability:ratio_rate7d) / 0.01))" }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": -100,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "yellow", "value": 20 },
+                  { "color": "green", "value": 50 }
+                ]
+              }
+            },
+            "overrides": []
+          }
         }
       ]
     }
