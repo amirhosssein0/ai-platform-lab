@@ -10,18 +10,19 @@ spec:
   source:
     repoURL: https://helm.elastic.co
     chart: filebeat
-    targetRevision: "*"
+    targetRevision: "8.5.1"
+
     helm:
       releaseName: filebeat
       valuesObject:
         daemonset:
           resources:
             requests:
-              cpu: 50m
-              memory: 64Mi
+              cpu: 100m
+              memory: 256Mi
             limits:
-              cpu: 200m
-              memory: 128Mi
+              cpu: 500m
+              memory: 512Mi
         filebeatConfig:
           filebeat.yml: |
             filebeat.autodiscover:
@@ -40,8 +41,12 @@ spec:
                     - logs_path:
                         logs_path: "/var/log/containers/"
             output.elasticsearch:
-              host: '${NODE_NAME}'
-              hosts: ["http://elasticsearch-master:9200"]
+              hosts: ["https://elasticsearch-master:9200"]
+              username: ${ELASTICSEARCH_USERNAME}
+              password: ${ELASTICSEARCH_PASSWORD}
+              ssl.certificate_authorities:
+                - /usr/share/filebeat/certs/ca.crt
+
   destination:
     server: https://kubernetes.default.svc
     namespace: logging

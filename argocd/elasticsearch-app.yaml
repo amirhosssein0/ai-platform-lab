@@ -10,7 +10,7 @@ spec:
   source:
     repoURL: https://helm.elastic.co
     chart: elasticsearch
-    targetRevision: "*"
+    targetRevision: "8.5.1"
     helm:
       releaseName: elasticsearch
       valuesObject:
@@ -30,10 +30,7 @@ spec:
           resources:
             requests:
               storage: 10Gi
-        esConfig:
-          elasticsearch.yml: |
-            discovery.type: single-node
-            xpack.security.enabled: false
+
   destination:
     server: https://kubernetes.default.svc
     namespace: logging

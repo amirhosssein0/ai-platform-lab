@@ -10,11 +10,20 @@ spec:
   source:
     repoURL: https://helm.elastic.co
     chart: kibana
-    targetRevision: "*"
+    targetRevision: "8.5.1"
     helm:
       releaseName: kibana
       valuesObject:
-        elasticsearchHosts: "http://elasticsearch-master:9200"
+        elasticsearchHosts: "https://elasticsearch-master:9200"
+
+        elasticsearchCertificateSecret: elasticsearch-master-certs
+
+        elasticsearchCertificateAuthoritiesFile: ca.crt
+
+        elasticsearchCredentialSecret: elasticsearch-master-credentials
+
+        protocol: http
+
         resources:
           requests:
             cpu: 100m
@@ -29,5 +38,5 @@ spec:
     automated:
       prune: true
       selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
+  syncOptions:
+    - CreateNamespace=true
