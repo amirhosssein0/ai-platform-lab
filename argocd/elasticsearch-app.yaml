@@ -1,0 +1,45 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: elasticsearch
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+  source:
+    repoURL: https://helm.elastic.co
+    chart: elasticsearch
+    targetRevision: "*"
+    helm:
+      releaseName: elasticsearch
+      valuesObject:
+        replicas: 1
+        minimumMasterNodes: 1
+        esJavaOpts: "-Xms1g -Xmx1g"
+        resources:
+          requests:
+            cpu: 250m
+            memory: 1.5Gi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        volumeClaimTemplate:
+          accessModes: ["ReadWriteOnce"]
+          storageClassName: local-path
+          resources:
+            requests:
+              storage: 10Gi
+        esConfig:
+          elasticsearch.yml: |
+            discovery.type: single-node
+            xpack.security.enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: logging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

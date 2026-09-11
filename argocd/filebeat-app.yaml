@@ -1,0 +1,53 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: filebeat
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: default
+  source:
+    repoURL: https://helm.elastic.co
+    chart: filebeat
+    targetRevision: "*"
+    helm:
+      releaseName: filebeat
+      valuesObject:
+        daemonset:
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+        filebeatConfig:
+          filebeat.yml: |
+            filebeat.autodiscover:
+              providers:
+                - type: kubernetes
+                  node: ${NODE_NAME}
+                  hints.enabled: true
+                  hints.default_config:
+                    type: container
+                    paths:
+                      - /var/log/containers/*${data.kubernetes.container.id}.log
+            processors:
+              - add_kubernetes_metadata:
+                  host: ${NODE_NAME}
+                  matchers:
+                    - logs_path:
+                        logs_path: "/var/log/containers/"
+            output.elasticsearch:
+              host: '${NODE_NAME}'
+              hosts: ["http://elasticsearch-master:9200"]
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: logging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
