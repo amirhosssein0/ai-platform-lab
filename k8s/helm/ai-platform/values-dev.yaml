@@ -3,10 +3,19 @@ backend:
   corsOrigins: "http://dev.ai.local"
   image:
     tag: "7ec6cfe"
+  autoscaling:
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilization: 70
+
 frontend:
   replicas: 1
   image:
     tag: "7ec6cfe"
+  autoscaling:
+    minReplicas: 1
+    maxReplicas: 2
+    targetCPUUtilization: 70
 ingress:
   host: dev.ai.local
 postgres:

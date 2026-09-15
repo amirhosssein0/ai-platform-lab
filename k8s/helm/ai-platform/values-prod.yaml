@@ -3,11 +3,19 @@ backend:
   corsOrigins: "http://prod.ai.local"
   image:
     tag: "f4e9177"
+  autoscaling:
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilization: 70
 
 frontend:
   replicas: 2
   image:
     tag: "f4e9177"
+  autoscaling:
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilization: 70
 
 ingress:
   host: prod.ai.local
