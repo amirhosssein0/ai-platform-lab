@@ -2,16 +2,15 @@ backend:
   replicas: 1
   corsOrigins: "http://dev.ai.local"
   image:
-    tag: "7ec6cfe"
+    tag: "66b5f19"
   autoscaling:
     minReplicas: 1
     maxReplicas: 3
     targetCPUUtilization: 70
-
 frontend:
   replicas: 1
   image:
-    tag: "7ec6cfe"
+    tag: "66b5f19"
   autoscaling:
     minReplicas: 1
     maxReplicas: 2
