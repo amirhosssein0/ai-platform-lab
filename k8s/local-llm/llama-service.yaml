@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: llama-local
+  namespace: local-llm
+  labels:
+    app: llama-local
+spec:
+  selector:
+    app: llama-local
+  ports:
+    - name: http
+      port: 8090
+      targetPort: 8090
