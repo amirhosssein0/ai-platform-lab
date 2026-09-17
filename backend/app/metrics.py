@@ -15,6 +15,10 @@ LLM_COMPLETION_TOKENS_TOTAL = Counter(
 LLM_COST_USD_TOTAL = Counter(
     "llm_cost_usd_total", "Estimated cumulative LLM cost in USD", ["model"]
 )
+PII_DETECTIONS_TOTAL = Counter(
+    "guardrail_pii_detections_total", "Total PII entities detected and redacted before reaching a model", ["entity_type"]
+)
+
 
 # USD per 1M tokens: (prompt_rate, completion_rate). All current models are free-tier.
 MODEL_PRICING = {
@@ -47,3 +51,6 @@ def record_llm_usage(
 def init_cost_series():
     for model in MODEL_PRICING:
         LLM_COST_USD_TOTAL.labels(model=model).inc(0)
+
+def record_pii_detection(entity_type: str):
+    PII_DETECTIONS_TOTAL.labels(entity_type=entity_type).inc()

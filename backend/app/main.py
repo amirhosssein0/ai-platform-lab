@@ -6,36 +6,34 @@ import traceback
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import Depends, FastAPI, APIRouter, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from pypdf import PdfReader
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
 from app import models
-from app.db import Base, engine, get_db
+from app.db import get_db
+from app.guardrails import InputValidationError, redact_pii, validate_input
 from app.llm import get_llm_reply, stream_llm_reply, validate_image
 from app.models import Conversation, Message
 from app.rag import embed_and_store, search_similar
 
-from prometheus_fastapi_instrumentator import Instrumentator
-from app.metrics import init_cost_series
-
-from app.tracing import setup_tracing, tracer
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_cost_series()
     yield
 
 
 app = FastAPI(title="AI Platform", version="0.1.0", lifespan=lifespan)
 
-setup_tracing(app)
-
-Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
 
@@ -55,6 +53,7 @@ class ChatRequest(BaseModel):
     message: str
     image: str | None = None
 
+
 class ConversationUpdate(BaseModel):
     title: str | None = None
     pinned: bool | None = None
@@ -73,7 +72,13 @@ def build_prompt(message: str) -> str:
 
 
 @api_router.post("/chat")
-async def chat(payload: ChatRequest, db: Session = Depends(get_db)):
+@limiter.limit("20/minute")
+async def chat(request: Request, payload: ChatRequest, db: Session = Depends(get_db)):
+    try:
+        validate_input(payload.message)
+    except InputValidationError as e:
+        raise HTTPException(400, str(e))
+
     if payload.image:
         try:
             validate_image(payload.image)
@@ -93,10 +98,12 @@ async def chat(payload: ChatRequest, db: Session = Depends(get_db)):
     db.add(Message(conversation_id=conversation.id, role="user", content=payload.message))
     db.commit()
 
+    safe_message = redact_pii(payload.message)
+
     if payload.image:
-        reply_text = await get_llm_reply(payload.message, image_data_url=payload.image)
+        reply_text = await get_llm_reply(safe_message, image_data_url=payload.image)
     else:
-        reply_text = await get_llm_reply(build_prompt(payload.message))
+        reply_text = await get_llm_reply(build_prompt(safe_message))
 
     db.add(Message(conversation_id=conversation.id, role="assistant", content=reply_text))
     db.commit()
@@ -105,7 +112,13 @@ async def chat(payload: ChatRequest, db: Session = Depends(get_db)):
 
 
 @api_router.post("/chat/stream")
-async def chat_stream(payload: ChatRequest, db: Session = Depends(get_db)):
+@limiter.limit("20/minute")
+async def chat_stream(request: Request, payload: ChatRequest, db: Session = Depends(get_db)):
+    try:
+        validate_input(payload.message)
+    except InputValidationError as e:
+        raise HTTPException(400, str(e))
+
     if payload.image:
         try:
             validate_image(payload.image)
@@ -125,14 +138,16 @@ async def chat_stream(payload: ChatRequest, db: Session = Depends(get_db)):
     db.add(Message(conversation_id=conversation.id, role="user", content=payload.message))
     db.commit()
 
+    safe_message = redact_pii(payload.message)
+
     async def event_generator():
         full_reply = ""
         yield f"event: conversation\ndata: {conversation.id}\n\n"
         try:
             if payload.image:
-                stream = stream_llm_reply(payload.message, image_data_url=payload.image)
+                stream = stream_llm_reply(safe_message, image_data_url=payload.image)
             else:
-                stream = stream_llm_reply(build_prompt(payload.message))
+                stream = stream_llm_reply(build_prompt(safe_message))
             async for delta in stream:
                 full_reply += delta
                 yield f"data: {json.dumps({'delta': delta})}\n\n"
@@ -157,7 +172,8 @@ async def chat_stream(payload: ChatRequest, db: Session = Depends(get_db)):
 
 
 @api_router.post("/documents/upload")
-async def upload_document(file: UploadFile = File(...)):
+@limiter.limit("10/minute")
+async def upload_document(request: Request, file: UploadFile = File(...)):
     content = await file.read()
 
     if file.filename.lower().endswith(".pdf"):
@@ -169,7 +185,8 @@ async def upload_document(file: UploadFile = File(...)):
     if not text.strip():
         raise HTTPException(400, "No extractable text found in file")
 
-    chunk_count = embed_and_store(text, file.filename)
+    safe_text = redact_pii(text)
+    chunk_count = embed_and_store(safe_text, file.filename)
     return {"filename": file.filename, "chunks_indexed": chunk_count}
 
 
@@ -219,8 +236,11 @@ def get_conversation_messages(conversation_id: uuid.UUID, db: Session = Depends(
         for m in messages
     ]
 
+
 @api_router.patch("/conversations/{conversation_id}")
-def update_conversation(conversation_id: uuid.UUID, payload: ConversationUpdate, db: Session = Depends(get_db)):
+def update_conversation(
+    conversation_id: uuid.UUID, payload: ConversationUpdate, db: Session = Depends(get_db)
+):
     conversation = db.get(Conversation, conversation_id)
     if not conversation:
         raise HTTPException(404, "Conversation not found")
@@ -240,6 +260,7 @@ def delete_conversation(conversation_id: uuid.UUID, db: Session = Depends(get_db
     db.delete(conversation)
     db.commit()
     return {"deleted": True}
+
 
 @api_router.get("/health")
 def health_check():
