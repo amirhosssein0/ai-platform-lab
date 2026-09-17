@@ -100,10 +100,15 @@ async def chat(request: Request, payload: ChatRequest, db: Session = Depends(get
 
     safe_message = redact_pii(payload.message)
 
-    if payload.image:
-        reply_text = await get_llm_reply(safe_message, image_data_url=payload.image)
-    else:
-        reply_text = await get_llm_reply(build_prompt(safe_message))
+    try:
+        if payload.image:
+            reply_text = await get_llm_reply(safe_message, image_data_url=payload.image)
+        else:
+            reply_text = await get_llm_reply(build_prompt(safe_message))
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 429:
+            raise HTTPException(429, "Rate limit reached on the free tier. Wait a minute and try again.")
+        raise HTTPException(502, f"Upstream error ({e.response.status_code}).")
 
     db.add(Message(conversation_id=conversation.id, role="assistant", content=reply_text))
     db.commit()
