@@ -22,6 +22,13 @@ spec:
           export {{ "{{" }} $k {{ "}}" }}="{{ "{{" }} $v {{ "}}" }}"
           {{ "{{-" }} end {{ "-}}" }}
           {{ "{{-" }} end {{ "-}}" }}
+        vault.hashicorp.com/agent-inject-secret-gateway: "secret/data/shared/gateway"
+        vault.hashicorp.com/agent-inject-template-gateway: |
+          {{- with secret "secret/data/shared/gateway" -}}
+          {{- range $k, $v := .Data.data }}
+          export {{ $k }}="{{ $v }}"
+          {{- end -}}
+          {{- end -}}
     spec:
       securityContext:
         runAsNonRoot: true
