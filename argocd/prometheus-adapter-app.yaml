@@ -1,0 +1,47 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prometheus-adapter
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: prometheus-adapter
+    targetRevision: "*"
+    helm:
+      releaseName: prometheus-adapter
+      valuesObject:
+        prometheus:
+          url: http://kube-prometheus-stack-prometheus.monitoring.svc
+          port: 9090
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 300m
+            memory: 256Mi
+        rules:
+          default: false
+          custom:
+            - seriesQuery: 'DCGM_FI_DEV_GPU_UTIL{exported_namespace!="",exported_pod!=""}'
+              resources:
+                overrides:
+                  exported_namespace:
+                    resource: namespace
+                  exported_pod:
+                    resource: pod
+              name:
+                matches: "^DCGM_FI_DEV_GPU_UTIL$"
+                as: "gpu_utilization"
+              metricsQuery: 'avg(<<.Series>>{<<.LabelMatchers>>}) by (<<.GroupBy>>)'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
