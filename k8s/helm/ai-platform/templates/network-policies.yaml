@@ -114,11 +114,12 @@ spec:
         - protocol: TCP
           port: 4317
     - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: llm-gateway
       ports:
         - protocol: TCP
-          port: 443
+          port: 4000
 ---
 
 apiVersion: networking.k8s.io/v1
