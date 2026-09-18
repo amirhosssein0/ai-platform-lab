@@ -2,7 +2,7 @@ backend:
   replicas: 1
   corsOrigins: "http://dev.ai.local"
   image:
-    tag: "f4e7049"
+    tag: "225022d"
   autoscaling:
     minReplicas: 1
     maxReplicas: 3
@@ -10,7 +10,7 @@ backend:
 frontend:
   replicas: 1
   image:
-    tag: "f4e7049"
+    tag: "225022d"
   autoscaling:
     minReplicas: 1
     maxReplicas: 2
