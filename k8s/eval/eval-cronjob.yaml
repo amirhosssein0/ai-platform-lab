@@ -34,14 +34,19 @@ spec:
               type: RuntimeDefault
           containers:
             - name: eval
-              image: rag-eval:local
+              image: rag-eval:v4
               imagePullPolicy: Never
               command: ["sh", "-c", ". /vault/secrets/gateway && python run_eval.py"]
               env:
                 - name: BACKEND_URL
-                  value: "http://backend.dev.svc:8000"
+                  value: "http://backend.dev.svc.cluster.local:8000"
+
                 - name: GATEWAY_URL
-                  value: "http://litellm.llm-gateway.svc:4000/v1/chat/completions"
+                  value: "http://litellm.llm-gateway.svc.cluster.local:4000/v1/chat/completions"
+
+                - name: PUSHGATEWAY_URL
+                  value: "http://pushgateway-prometheus-pushgateway.monitoring.svc.cluster.local:9091"
+
               resources:
                 requests:
                   cpu: 100m
@@ -53,3 +58,11 @@ spec:
                 allowPrivilegeEscalation: false
                 capabilities:
                   drop: ["ALL"]
+              volumeMounts:
+              - name: eval-output
+                mountPath: /app/output
+          volumes:
+          - name: eval-output
+            hostPath:
+              path: /home/devopsnumber1/Desktop/ai-platform-lab/eval
+              type: Directory
