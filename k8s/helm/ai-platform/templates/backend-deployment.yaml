@@ -60,7 +60,7 @@ spec:
           startupProbe:
             httpGet:
               path: /api/health
-              port: 8000
+              port: {{ .Values.backend.containerPort }}
             periodSeconds: 5
             failureThreshold: 60
           readinessProbe:

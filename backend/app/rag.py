@@ -14,7 +14,15 @@ COLLECTION_NAME = "documents"
 EMBEDDING_DIM = 384
 
 client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
-embedder = TextEmbedding(model_name="BAAI/bge-small-en-v1.5")
+
+# Load the model from the local cache baked into the image at build time.
+# local_files_only=True guarantees this never touches the network at
+# runtime, regardless of NetworkPolicy or DNS/routing state in the cluster.
+embedder = TextEmbedding(
+    model_name="BAAI/bge-small-en-v1.5",
+    cache_dir=os.environ.get("FASTEMBED_CACHE_PATH", "/opt/fastembed_cache"),
+    local_files_only=True,
+)
 
 
 def ensure_collection():
