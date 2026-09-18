@@ -1,0 +1,47 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rag-eval
+  namespace: dev
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/agent-pre-populate-only: "true"
+        vault.hashicorp.com/role: "dev-backend"
+        vault.hashicorp.com/agent-inject-secret-gateway: "secret/data/shared/gateway"
+        vault.hashicorp.com/agent-inject-template-gateway: |
+          {{ "{{-" }} with secret "secret/data/shared/gateway" {{ "-}}" }}
+          {{ "{{-" }} range $k, $v := .Data.data {{ "}}" }}
+          export {{ "{{" }} $k {{ "}}" }}="{{ "{{" }} $v {{ "}}" }}"
+          {{ "{{-" }} end {{ "-}}" }}
+          {{ "{{-" }} end {{ "-}}" }}
+    spec:
+      serviceAccountName: backend
+      restartPolicy: Never
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: eval
+          image: rag-eval:local
+          imagePullPolicy: Never
+          command: ["sh", "-c", ". /vault/secrets/gateway && python run_eval.py"]
+          env:
+            - name: BACKEND_URL
+              value: "http://backend.dev.svc:8000"
+            - name: GATEWAY_URL
+              value: "http://litellm.llm-gateway.svc:4000/v1/chat/completions"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
