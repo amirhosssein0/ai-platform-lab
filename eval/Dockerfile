@@ -4,5 +4,6 @@ RUN useradd --create-home --uid 10001 appuser
 WORKDIR /app
 RUN pip install --no-cache-dir httpx
 COPY golden_dataset.json run_eval.py ./
+RUN mkdir /app/output && chown appuser:appuser /app/output
 USER appuser
 CMD ["python", "run_eval.py"]

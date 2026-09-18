@@ -2,7 +2,10 @@
   {
     "id": "kubernetes-basic",
     "question": "What is Kubernetes?",
-    "expected_topics": ["container orchestration", "automates deployment"],
+    "expected_topics": [
+      "container orchestration",
+      "automates deployment"
+    ],
     "context_required": false
   },
   {
