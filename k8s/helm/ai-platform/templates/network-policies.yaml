@@ -245,7 +245,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      job-name: rag-eval
+      app: rag-eval
   policyTypes:
     - Egress
   egress:
