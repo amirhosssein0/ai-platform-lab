@@ -6,13 +6,11 @@ WORKDIR /app
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 RUN python -m spacy download en_core_web_lg
 
-# Pre-download the fastembed model at build time so the container never
-# needs network access to Hugging Face (or GCS) at runtime.
 RUN python -c "from fastembed import TextEmbedding; \
     TextEmbedding(model_name='BAAI/bge-small-en-v1.5', cache_dir='/opt/fastembed_cache')"
 
@@ -30,9 +28,9 @@ ENV FASTEMBED_CACHE_PATH=/opt/fastembed_cache
 
 WORKDIR /app
 
-COPY --chown=appuser:appuser app ./app
-COPY alembic.ini .
-COPY alembic ./alembic
+COPY --chown=appuser:appuser backend/app ./app
+COPY backend/alembic.ini .
+COPY backend/alembic ./alembic
 COPY --chown=appuser:appuser prompts /prompts
 
 USER appuser
