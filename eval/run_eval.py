@@ -3,6 +3,8 @@ import os
 import sys
 import time
 import httpx
+from pathlib import Path
+
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://backend.dev.svc:8000")
 GATEWAY_URL = os.getenv(
@@ -17,40 +19,13 @@ PUSHGATEWAY_URL = os.getenv(
 
 REPORT_PATH = "/app/output/eval_report.json"
 
-JUDGE_PROMPT = """You are evaluating an AI system's answer.
+def load_judge_prompt() -> str:
+    lines = Path("prompts/judge_prompt.txt").read_text().splitlines()
+    if lines and lines[0].startswith("# version:"):
+        lines = lines[1:]
+    return "\n".join(lines).lstrip("\n")
 
-Question:
-{question}
-
-Evaluation criteria:
-{expected}
-
-Actual answer:
-{actual}
-
-Score from 0 to 10.
-
-Rules:
-- 10 = fully correct.
-- 8-9 = essentially correct with minor omissions.
-- 6-7 = mostly correct but incomplete.
-- 4-5 = partially correct.
-- 2-3 = mostly incorrect.
-- 1 = almost entirely incorrect.
-- 0 = completely incorrect, fabricated, or contradictory.
-
-Judge the meaning, not exact wording.
-
-For questions with expected topics, give credit when the actual answer correctly explains those topics.
-
-For a case where the expected behavior is "should admit uncertainty":
-an answer that correctly says the information is unknown, unavailable,
-or cannot be determined from the provided information is CORRECT.
-Do NOT mark such an answer as hallucination or incorrect merely because
-it does not provide a specific answer.
-
-Respond with ONLY a single integer from 0-10.
-"""
+JUDGE_PROMPT = load_judge_prompt()
 
 
 def ask_backend(question: str) -> str:
@@ -142,7 +117,7 @@ def judge_answer(question: str, expected: str, actual: str) -> int:
 def push_metrics(results: list[dict]):
     avg_score = sum(r["score"] for r in results) / len(results)
     pass_count = sum(
-        1 for r in results if r["score"] >= 1
+        1 for r in results if r["score"] >= 6
     )
 
     body = (
