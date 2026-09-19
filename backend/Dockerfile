@@ -4,11 +4,9 @@ FROM python:3.12-slim AS builder
 WORKDIR /app
 
 RUN python -m venv /opt/venv
-
 ENV PATH="/opt/venv/bin:$PATH"
 
 COPY requirements.txt .
-
 RUN pip install --no-cache-dir -r requirements.txt
 
 RUN python -m spacy download en_core_web_lg
@@ -35,7 +33,7 @@ WORKDIR /app
 COPY --chown=appuser:appuser app ./app
 COPY alembic.ini .
 COPY alembic ./alembic
-COPY prompts ../prompts
+COPY --chown=appuser:appuser prompts /prompts
 
 USER appuser
 
