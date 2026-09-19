@@ -134,9 +134,53 @@ jobs:
             --skip-check CKV_K8S_21,CKV_K8S_15,CKV_K8S_43,CKV_K8S_22,CKV_K8S_38 \
             --compact
 
+  ai-artifacts-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prompt files must have a semver version header
+        run: |
+          for f in prompts/*.txt; do
+            head -1 "$f" | grep -qE '^# version: [0-9]+\.[0-9]+\.[0-9]+$' || { echo "::error file=$f::Missing or invalid '# version: X.Y.Z' header"; exit 1; }
+          done
+
+      - name: Fail if prompt content changed without a version bump
+        run: |
+          BASE="origin/${{ github.event.pull_request.base.ref || 'local' }}"
+          git fetch origin "${{ github.event.pull_request.base.ref || 'local' }}" --depth=50 || true
+          for f in prompts/*.txt; do
+            old=$(git show "$BASE:$f" 2>/dev/null | head -1 || echo "none")
+            new=$(head -1 "$f")
+            if [ "$old" != "none" ] && [ "$old" = "$new" ] && ! git diff --quiet "$BASE" -- "$f" 2>/dev/null; then
+              echo "::error file=$f::Content changed but version header was not bumped"
+              exit 1
+            fi
+          done
+
+      - name: Validate required placeholders exist
+        run: |
+          python3 - <<'EOF'
+          import pathlib, sys
+          required = {
+              "prompts/rag_prompt.txt": ["{context}", "{question}"],
+              "prompts/judge_prompt.txt": ["{question}", "{expected}", "{actual}"],
+          }
+          failed = False
+          for path, placeholders in required.items():
+              content = pathlib.Path(path).read_text()
+              for p in placeholders:
+                  if p not in content:
+                      print(f"::error file={path}::Missing required placeholder {p}")
+                      failed = True
+          sys.exit(1 if failed else 0)
+          EOF
+
   release:
     if: github.event_name == 'push'
-    needs: [backend-check, frontend-check, migration-test, checkov-scan]
+    needs: [backend-check, frontend-check, migration-test, checkov-scan, ai-artifacts-check]
     runs-on: ubuntu-latest
     permissions:
       contents: write
