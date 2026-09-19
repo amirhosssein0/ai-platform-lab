@@ -28,7 +28,8 @@ jobs:
           pip install ruff
           ruff check .
       - name: Build Docker image (verify buildability)
-        run: docker build -t ai-backend:ci .
+        working-directory: ${{ github.workspace }}
+        run: docker build -t ai-backend:ci -f backend/Dockerfile .
       - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@0.35.0
         continue-on-error: true
@@ -218,7 +219,8 @@ jobs:
         id: build-backend
         uses: docker/build-push-action@v6
         with:
-          context: backend
+          context: .
+          file: backend/Dockerfile
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/ai-platform-lab/backend:${{ steps.vars.outputs.sha_short }}
 
