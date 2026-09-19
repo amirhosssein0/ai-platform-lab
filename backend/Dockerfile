@@ -35,6 +35,7 @@ WORKDIR /app
 COPY --chown=appuser:appuser app ./app
 COPY alembic.ini .
 COPY alembic ./alembic
+COPY prompts ../prompts
 
 USER appuser
 

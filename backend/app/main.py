@@ -23,9 +23,28 @@ from app.llm import get_llm_reply, stream_llm_reply, validate_image
 from app.models import Conversation, Message
 from app.rag import embed_and_store, search_similar
 
+from pathlib import Path
+from app.metrics import record_prompt_version
+from app.rag import check_embedding_version_drift
+
+
+def load_prompt_template(name: str) -> tuple[str, str]:
+    path = Path(__file__).resolve().parent.parent.parent / "prompts" / name
+    lines = path.read_text().splitlines()
+    version = "unknown"
+    if lines and lines[0].startswith("# version:"):
+        version = lines[0].split(":", 1)[1].strip()
+        lines = lines[1:]
+    return "\n".join(lines).lstrip("\n"), version
+
+
+RAG_PROMPT_TEMPLATE, RAG_PROMPT_VERSION = load_prompt_template("rag_prompt.txt")
+record_prompt_version("rag_prompt", RAG_PROMPT_VERSION)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    check_embedding_version_drift()
     yield
 
 
@@ -64,11 +83,7 @@ def build_prompt(message: str) -> str:
     if not context_chunks:
         return message
     context_text = "\n\n".join(context_chunks)
-    return (
-        "Answer the question using the context below if it's relevant. "
-        "If the context isn't relevant, answer normally.\n\n"
-        f"Context:\n{context_text}\n\nQuestion: {message}"
-    )
+    return RAG_PROMPT_TEMPLATE.format(context=context_text, question=message)
 
 
 @api_router.post("/chat")

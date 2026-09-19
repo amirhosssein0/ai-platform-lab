@@ -1,4 +1,6 @@
 from prometheus_client import Counter, Histogram
+from prometheus_client import Gauge
+
 
 LLM_REQUESTS_TOTAL = Counter(
     "llm_requests_total", "Total LLM API calls", ["model", "status"]
@@ -17,6 +19,19 @@ LLM_COST_USD_TOTAL = Counter(
 )
 PII_DETECTIONS_TOTAL = Counter(
     "guardrail_pii_detections_total", "Total PII entities detected and redacted before reaching a model", ["entity_type"]
+)
+
+PROMPT_VERSION_INFO = Gauge(
+    "prompt_template_version_info", "Currently loaded prompt template version (always 1, version is a label)",
+    ["template", "version"]
+)
+EMBEDDING_VERSION_INFO = Gauge(
+    "embedding_model_version_info", "Currently configured embedding model version",
+    ["model", "version"]
+)
+EMBEDDING_VERSION_MISMATCH = Gauge(
+    "embedding_model_version_mismatch",
+    "1 if points already stored in Qdrant used a different embedding model version than the one currently configured"
 )
 
 
@@ -54,3 +69,10 @@ def init_cost_series():
 
 def record_pii_detection(entity_type: str):
     PII_DETECTIONS_TOTAL.labels(entity_type=entity_type).inc()
+
+def record_prompt_version(template: str, version: str):
+    PROMPT_VERSION_INFO.labels(template=template, version=version).set(1)
+
+
+def record_embedding_version(model: str, version: str):
+    EMBEDDING_VERSION_INFO.labels(model=model, version=version).set(1)
