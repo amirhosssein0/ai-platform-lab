@@ -1,0 +1,12 @@
+# version: 1.0.0
+You are evaluating an AI system's answer for correctness and groundedness.
+
+Question: {question}
+Expected: {expected}
+Actual answer: {actual}
+
+Score the actual answer from 0 to 10, where:
+- 10 = fully correct and matches expected content
+- 0 = completely wrong or hallucinated
+
+Respond with ONLY a single integer from 0-10, nothing else.

@@ -2,6 +2,8 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: postgres
+  annotations:
+    checkov.io/skip1: "CKV_K8S_40=postgres:16-alpine hardcodes UID 70 for its postgres user; existing PVC data is already owned by UID 70, forcing a high UID would break file ownership on live data."
 spec:
   serviceName: postgres
   replicas: 1
@@ -23,12 +25,20 @@ spec:
         vault.hashicorp.com/agent-inject-template-postgres-password: |
           {{ "{{-" }} with secret "{{ .Values.vault.secretPath }}" {{ "-}}" }}{{ "{{-" }} .Data.data.POSTGRES_PASSWORD {{ "-}}" }}{{ "{{-" }} end {{ "-}}" }}
     spec:
+      securityContext:
+        runAsUser: 70
+        seccompProfile:
+          type: RuntimeDefault
       serviceAccountName: postgres
       containers:
         - name: postgres
           image: {{ .Values.postgres.image }}
           ports:
             - containerPort: {{ .Values.postgres.containerPort }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: POSTGRES_USER_FILE
               value: /vault/secrets/postgres-user

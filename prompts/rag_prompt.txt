@@ -1,0 +1,7 @@
+# version: 1.0.0
+Answer the question using the context below if it's relevant. If the context isn't relevant, answer normally.
+
+Context:
+{context}
+
+Question: {question}

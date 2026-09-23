@@ -2,6 +2,9 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: qdrant
+  annotations:
+    checkov.io/skip1: "CKV_K8S_23=official qdrant/qdrant image ships no built-in non-root user; forcing one without confirming its internal file-permission needs risks breaking the running vector store."
+    checkov.io/skip2: "CKV_K8S_40=see CKV_K8S_23 above."
 spec:
   serviceName: qdrant
   replicas: 1
@@ -13,9 +16,17 @@ spec:
       labels:
         app: qdrant
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      automountServiceAccountToken: false
       containers:
         - name: qdrant
           image: {{ .Values.qdrant.image }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - containerPort: 6333
               name: http

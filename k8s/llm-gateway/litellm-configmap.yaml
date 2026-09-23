@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: litellm-config
+  namespace: llm-gateway
+data:
+  config.yaml: |
+    model_list:
+      - model_name: text-primary
+        litellm_params:
+          model: openai/google/gemma-4-26b-a4b-it:free
+          api_base: https://openrouter.ai/api/v1
+          api_key: os.environ/OPENROUTER_API_KEY
+
+      - model_name: text-local
+        litellm_params:
+          model: openai/llama-local
+          api_base: http://llama-local.local-llm.svc:8090/v1
+          api_key: "not-needed"
+
+      - model_name: vision
+        litellm_params:
+          model: openai/google/gemma-4-31b-it:free
+          api_base: https://openrouter.ai/api/v1
+          api_key: os.environ/OPENROUTER_API_KEY
+      - model_name: vision
+        litellm_params:
+          model: openai/google/gemma-4-26b-a4b-it:free
+          api_base: https://openrouter.ai/api/v1
+          api_key: os.environ/OPENROUTER_API_KEY
+      - model_name: vision
+        litellm_params:
+          model: openai/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
+          api_base: https://openrouter.ai/api/v1
+          api_key: os.environ/OPENROUTER_API_KEY
+
+    router_settings:
+      routing_strategy: simple-shuffle
+      fallbacks: [{"text-primary": ["text-local"]}]
+      num_retries: 1
+      cooldown_time: 30
+
+    general_settings:
+      master_key: os.environ/LITELLM_MASTER_KEY
+
+    litellm_settings:
+      callbacks: ["prometheus"]

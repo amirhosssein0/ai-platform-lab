@@ -1,0 +1,24 @@
+[
+  {
+    "id": "kubernetes-basic",
+    "question": "What is Kubernetes?",
+    "expected_topics": [
+      "container orchestration",
+      "automates deployment"
+    ],
+    "context_required": false
+  },
+  {
+    "id": "rag-fact-check",
+    "setup_document": "The secret project codename for aegis-ai-platform's mascot is Zephyr-9.",
+    "question": "What is the codename of the project's mascot?",
+    "expected_answer": "Zephyr-9",
+    "context_required": true
+  },
+  {
+    "id": "no-hallucination",
+    "question": "What is the capital of the fictional country Wakanda-Zeta-9?",
+    "expected_behavior": "should_admit_uncertainty",
+    "context_required": false
+  }
+]

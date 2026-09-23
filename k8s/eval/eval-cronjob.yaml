@@ -1,0 +1,68 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: rag-eval
+  namespace: dev
+spec:
+  schedule: "0 4 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app: rag-eval
+          annotations:
+            vault.hashicorp.com/agent-inject: "true"
+            vault.hashicorp.com/agent-pre-populate-only: "true"
+            vault.hashicorp.com/role: "dev-backend"
+            vault.hashicorp.com/agent-inject-secret-gateway: "secret/data/shared/gateway"
+            vault.hashicorp.com/agent-inject-template-gateway: |
+              {{- with secret "secret/data/shared/gateway" -}}
+              {{- range $k, $v := .Data.data }}
+              export {{ $k }}="{{ $v }}"
+              {{- end -}}
+              {{- end -}}
+        spec:
+          serviceAccountName: backend
+          restartPolicy: Never
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: eval
+              image: rag-eval:v4
+              imagePullPolicy: Never
+              command: ["sh", "-c", ". /vault/secrets/gateway && python run_eval.py"]
+              env:
+                - name: BACKEND_URL
+                  value: "http://backend.dev.svc.cluster.local:8000"
+
+                - name: GATEWAY_URL
+                  value: "http://litellm.llm-gateway.svc.cluster.local:4000/v1/chat/completions"
+
+                - name: PUSHGATEWAY_URL
+                  value: "http://pushgateway-prometheus-pushgateway.monitoring.svc.cluster.local:9091"
+
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 300m
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+              - name: eval-output
+                mountPath: /app/output
+          volumes:
+          - name: eval-output
+            hostPath:
+              path: /home/devopsnumber1/Desktop/ai-platform-lab/eval
+              type: Directory

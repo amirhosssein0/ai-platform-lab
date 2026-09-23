@@ -6,52 +6,278 @@ on:
   pull_request:
     branches: [develop, master]
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
-  backend:
+  backend-check:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
+      - run: pip install -r requirements.txt
       - name: Lint (non-blocking for now)
         continue-on-error: true
         run: |
           pip install ruff
           ruff check .
+      - name: Build Docker image (verify buildability)
+        working-directory: ${{ github.workspace }}
+        run: docker build -t ai-backend:ci -f backend/Dockerfile .
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@0.35.0
+        continue-on-error: true
+        with:
+          image-ref: ai-backend:ci
+          format: table
+          exit-code: "0"
+          severity: CRITICAL,HIGH
 
-      - name: Build Docker image
-        run: docker build -t ai-backend:ci .
-
-  frontend:
+  frontend-check:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-
-      - name: Install dependencies
-        run: npm ci
-
+      - run: npm ci
       - name: Lint (non-blocking for now)
         continue-on-error: true
         run: npm run lint
-
-      - name: Build
-        run: npm run build
-
-      - name: Build Docker image
+      - run: npm run build
+      - name: Build Docker image (verify buildability)
         run: docker build -t ai-frontend:ci .
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@0.35.0
+        continue-on-error: true
+        with:
+          image-ref: ai-frontend:ci
+          format: table
+          exit-code: "0"
+          severity: CRITICAL,HIGH
+
+  migration-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: aegis
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: aegis
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Run migrations against a real Postgres
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: aegis
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: aegis
+        run: alembic upgrade head
+      - name: Verify expected schema
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_USER: aegis
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: aegis
+        run: |
+          python - <<'EOF'
+          from sqlalchemy import inspect
+          from app.db import engine
+
+          inspector = inspect(engine)
+          conv_columns = {c["name"] for c in inspector.get_columns("conversations")}
+          msg_columns = {c["name"] for c in inspector.get_columns("messages")}
+
+          assert "pinned" in conv_columns, "conversations.pinned is missing!"
+          assert {"id", "conversation_id", "role", "content"}.issubset(msg_columns), "messages table missing expected columns"
+          print("Schema check passed.")
+          EOF
+
+  checkov-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Install Checkov
+        run: pip install checkov
+
+      - name: Scan Helm chart (dev values)
+        run: |
+          checkov -d k8s/helm/ai-platform --framework helm \
+            --var-file k8s/helm/ai-platform/values-dev.yaml \
+            --skip-check CKV_K8S_21,CKV_K8S_15,CKV_K8S_43,CKV_K8S_22,CKV_K8S_38 \
+            --compact
+
+  ai-artifacts-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prompt files must have a semver version header
+        run: |
+          for f in prompts/*.txt; do
+            head -1 "$f" | grep -qE '^# version: [0-9]+\.[0-9]+\.[0-9]+$' || { echo "::error file=$f::Missing or invalid '# version: X.Y.Z' header"; exit 1; }
+          done
+
+      - name: Fail if prompt content changed without a version bump
+        run: |
+          BASE="origin/${{ github.event.pull_request.base.ref || 'local' }}"
+          git fetch origin "${{ github.event.pull_request.base.ref || 'local' }}" --depth=50 || true
+          for f in prompts/*.txt; do
+            old=$(git show "$BASE:$f" 2>/dev/null | head -1 || echo "none")
+            new=$(head -1 "$f")
+            if [ "$old" != "none" ] && [ "$old" = "$new" ] && ! git diff --quiet "$BASE" -- "$f" 2>/dev/null; then
+              echo "::error file=$f::Content changed but version header was not bumped"
+              exit 1
+            fi
+          done
+
+      - name: Validate required placeholders exist
+        run: |
+          python3 - <<'EOF'
+          import pathlib, sys
+          required = {
+              "prompts/rag_prompt.txt": ["{context}", "{question}"],
+              "prompts/judge_prompt.txt": ["{question}", "{expected}", "{actual}"],
+          }
+          failed = False
+          for path, placeholders in required.items():
+              content = pathlib.Path(path).read_text()
+              for p in placeholders:
+                  if p not in content:
+                      print(f"::error file={path}::Missing required placeholder {p}")
+                      failed = True
+          sys.exit(1 if failed else 0)
+          EOF
+
+  release:
+    if: github.event_name == 'push'
+    needs: [backend-check, frontend-check, migration-test, checkov-scan, ai-artifacts-check]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set short SHA
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Determine target values file
+        id: env
+        run: |
+          if [ "${{ github.ref_name }}" = "develop" ]; then
+            echo "values_file=k8s/helm/ai-platform/values-dev.yaml" >> "$GITHUB_OUTPUT"
+          else
+            echo "values_file=k8s/helm/ai-platform/values-prod.yaml" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push backend image
+        id: build-backend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/ai-platform-lab/backend:${{ steps.vars.outputs.sha_short }}
+
+      - name: Build and push frontend image
+        id: build-frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/ai-platform-lab/frontend:${{ steps.vars.outputs.sha_short }}
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@v0
+
+      - name: Sign backend image (keyless)
+        run: cosign sign --yes ghcr.io/${{ github.repository_owner }}/ai-platform-lab/backend@${{ steps.build-backend.outputs.digest }}
+
+      - name: Sign frontend image (keyless)
+        run: cosign sign --yes ghcr.io/${{ github.repository_owner }}/ai-platform-lab/frontend@${{ steps.build-frontend.outputs.digest }}
+
+      - name: Generate backend SBOM
+        run: syft ghcr.io/${{ github.repository_owner }}/ai-platform-lab/backend@${{ steps.build-backend.outputs.digest }} -o spdx-json=backend-sbom.json
+
+      - name: Generate frontend SBOM
+        run: syft ghcr.io/${{ github.repository_owner }}/ai-platform-lab/frontend@${{ steps.build-frontend.outputs.digest }} -o spdx-json=frontend-sbom.json
+
+      - name: Attest backend SBOM (signed)
+        run: cosign attest --yes --type spdxjson --predicate backend-sbom.json ghcr.io/${{ github.repository_owner }}/ai-platform-lab/backend@${{ steps.build-backend.outputs.digest }}
+
+      - name: Attest frontend SBOM (signed)
+        run: cosign attest --yes --type spdxjson --predicate frontend-sbom.json ghcr.io/${{ github.repository_owner }}/ai-platform-lab/frontend@${{ steps.build-frontend.outputs.digest }}
+
+      - name: Upload SBOMs as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sboms-${{ steps.vars.outputs.sha_short }}
+          path: |
+            backend-sbom.json
+            frontend-sbom.json
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Bump image tags in Helm values
+        run: |
+          yq -i '.backend.image.tag = "${{ steps.vars.outputs.sha_short }}"' ${{ steps.env.outputs.values_file }}
+          yq -i '.frontend.image.tag = "${{ steps.vars.outputs.sha_short }}"' ${{ steps.env.outputs.values_file }}
+
+      - name: Commit and push updated tags
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ${{ steps.env.outputs.values_file }}
+          git commit -m "chore(ci): bump image tags to ${{ steps.vars.outputs.sha_short }} [skip ci]" || echo "Nothing to commit"
+          git push

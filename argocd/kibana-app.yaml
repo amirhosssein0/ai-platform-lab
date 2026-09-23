@@ -1,0 +1,42 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kibana
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: https://helm.elastic.co
+    chart: kibana
+    targetRevision: "8.5.1"
+    helm:
+      releaseName: kibana
+      valuesObject:
+        elasticsearchHosts: "https://elasticsearch-master:9200"
+
+        elasticsearchCertificateSecret: elasticsearch-master-certs
+
+        elasticsearchCertificateAuthoritiesFile: ca.crt
+
+        elasticsearchCredentialSecret: elasticsearch-master-credentials
+
+        protocol: http
+
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: logging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+  syncOptions:
+    - CreateNamespace=true

@@ -1,0 +1,69 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ai-platform-slo
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: ai-platform-availability-slo
+      rules:
+        - record: job:http_availability:ratio_rate5m
+          expr: sum(rate(http_requests_total{status!="5xx"}[5m])) / sum(rate(http_requests_total[5m]))
+        - record: job:http_availability:ratio_rate30m
+          expr: sum(rate(http_requests_total{status!="5xx"}[30m])) / sum(rate(http_requests_total[30m]))
+        - record: job:http_availability:ratio_rate1h
+          expr: sum(rate(http_requests_total{status!="5xx"}[1h])) / sum(rate(http_requests_total[1h]))
+        - record: job:http_availability:ratio_rate6h
+          expr: sum(rate(http_requests_total{status!="5xx"}[6h])) / sum(rate(http_requests_total[6h]))
+        - record: job:http_availability:ratio_rate7d
+          expr: sum(rate(http_requests_total{status!="5xx"}[7d])) / sum(rate(http_requests_total[7d]))
+
+        # burn rate = (1 - SLI) / (1 - SLO_target); SLO_target = 0.99
+        - record: job:http_availability:burnrate5m
+          expr: (1 - job:http_availability:ratio_rate5m) / 0.01
+        - record: job:http_availability:burnrate30m
+          expr: (1 - job:http_availability:ratio_rate30m) / 0.01
+        - record: job:http_availability:burnrate1h
+          expr: (1 - job:http_availability:ratio_rate1h) / 0.01
+        - record: job:http_availability:burnrate6h
+          expr: (1 - job:http_availability:ratio_rate6h) / 0.01
+
+    - name: ai-platform-availability-slo-alerts
+      rules:
+        - alert: BackendAvailabilitySLOFastBurn
+          expr: job:http_availability:burnrate1h > 14.4 and job:http_availability:burnrate5m > 14.4
+          for: 2m
+          labels:
+            severity: critical
+            slo: backend-availability
+          annotations:
+            summary: "Fast error-budget burn on backend availability"
+            description: "At this rate the 7-day error budget is exhausted in ~2 days. 1h burn rate: {{ $value | printf \"%.1f\" }}x"
+
+        - alert: BackendAvailabilitySLOSlowBurn
+          expr: job:http_availability:burnrate6h > 6 and job:http_availability:burnrate30m > 6
+          for: 15m
+          labels:
+            severity: warning
+            slo: backend-availability
+          annotations:
+            summary: "Slow error-budget burn on backend availability"
+            description: "At this rate the 7-day error budget is exhausted in ~5 days. 6h burn rate: {{ $value | printf \"%.1f\" }}x"
+
+    - name: ai-platform-latency-slo
+      rules:
+        - record: job:llm_latency:good_ratio_rate5m
+          expr: sum(rate(llm_request_duration_seconds_bucket{le="5.0"}[5m])) / sum(rate(llm_request_duration_seconds_count[5m]))
+        - record: job:llm_latency:good_ratio_rate1h
+          expr: sum(rate(llm_request_duration_seconds_bucket{le="5.0"}[1h])) / sum(rate(llm_request_duration_seconds_count[1h]))
+
+        - alert: LLMLatencySLOBreach
+          expr: job:llm_latency:good_ratio_rate1h < 0.95
+          for: 15m
+          labels:
+            severity: warning
+            slo: llm-latency
+          annotations:
+            summary: "LLM call latency SLO breached"
+            description: "Fewer than 95% of LLM calls completed within 5s over the last hour (current: {{ $value | humanizePercentage }})"
