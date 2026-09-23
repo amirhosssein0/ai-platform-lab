@@ -275,7 +275,7 @@ Applied before every request reaches any model:
 - A golden dataset (`eval/golden_dataset.json`) covering three distinct failure modes: general knowledge, RAG-dependent fact retrieval, and hallucination resistance.
 - An LLM-as-judge (via the gateway's `text-primary` route) scores each answer 0–10.
 - Runs as a nightly CronJob, pushing `eval_average_score`/`eval_pass_rate` to Prometheus via a Pushgateway (since it's a short-lived batch job, not a scrapeable service).
-
+ 
 ### AI Artifact Versioning
 
 - Prompt templates live as standalone files in `prompts/`, each with a `# version: X.Y.Z` header — not buried as string literals in application code.
