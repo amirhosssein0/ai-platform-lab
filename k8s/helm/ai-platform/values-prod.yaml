@@ -2,37 +2,31 @@ backend:
   replicas: 2
   corsOrigins: "http://prod.ai.local"
   image:
-    tag: "f4e9177"
+    tag: "56ff548"
   autoscaling:
     minReplicas: 2
     maxReplicas: 6
     targetCPUUtilization: 70
-
 frontend:
   replicas: 2
   image:
-    tag: "f4e9177"
+    tag: "56ff548"
   autoscaling:
     minReplicas: 2
     maxReplicas: 4
     targetCPUUtilization: 70
-
 ingress:
   host: prod.ai.local
-
 postgres:
   storageSize: 5Gi
-
 qdrant:
   storageSize: 5Gi
-
 resourceQuota:
   requestsCpu: "4"
   requestsMemory: 8Gi
   limitsCpu: "8"
   limitsMemory: 16Gi
   maxPods: 30
-
 vault:
   role: prod-backend
   secretPath: secret/data/prod/backend
